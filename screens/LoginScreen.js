@@ -29,8 +29,8 @@ const LoginScreen = () => {
         <Text style={styles.logoText}>LoetoLink</Text>
       </View>
       <Image
-              source={require('../assets/Bus.gif')} // Ensure you have a splash.png image in your assets folder
-              style={styles.splashImage}
+              source={require('../assets/logo.jpg')}
+              style={[styles.splashImage, { width: 100, height: 100, resizeMode: 'contain' }]}
             />
       <Text style={styles.title}>Welcome!</Text>
       <TouchableOpacity style={styles.appleButton}>
