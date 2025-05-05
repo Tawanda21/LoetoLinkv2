@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "LoetoLink",
+    "slug": "LoetoLink",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff",
+      "updates": {
+        "enabled": false
+      }
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AlzaSya0Ll6laKMO06oO9lBmTdqQ6P_4Qo1_fEJ"
+        }
+      },
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.anonymous.LoetoLink"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
