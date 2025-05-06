@@ -53,13 +53,13 @@ const Divider = ({ text }) => (
 );
 
 const InputDesign = () => {
-  const [username, setUsername] = useState("");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleSignUp = () => {
-    console.log({ username, email, password, confirmPassword });
+    console.log({ email, password, confirmPassword });
   };
 
   const handleSignIn = () => {
@@ -70,12 +70,6 @@ const InputDesign = () => {
     <View style={inputDesignStyles.container}>
       <SignUpHeader />
 
-      <InputField
-        placeholder="Username"
-        value={username}
-        onChangeText={setUsername}
-        style={inputDesignStyles.inputSpacing}
-      />
       <InputField
         placeholder="Email"
         value={email}
