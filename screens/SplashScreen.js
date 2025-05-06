@@ -19,7 +19,7 @@ const SplashScreen = () => {
         source={require('../assets/animations/FinalSplashScreen.json')} // Path to your JSON file
         autoPlay
         loop
-        speed={9} //the speed
+        speed={15} //the speed
         style={styles.lottieAnimation}
       />
     </View>
