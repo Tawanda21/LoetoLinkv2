@@ -16,10 +16,10 @@ const SplashScreen = () => {
   return (
     <View style={styles.container}>
       <LottieView
-        source={require('../assets/animations/SplashScreen.json')} // Path to your JSON file
+        source={require('../assets/animations/FinalSplashScreen.json')} // Path to your JSON file
         autoPlay
         loop
-        speed={5} //the speed
+        speed={9} //the speed
         style={styles.lottieAnimation}
       />
     </View>
