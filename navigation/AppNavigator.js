@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Animated } from 'react-native';
 import { CardStyleInterpolators } from '@react-navigation/stack';
 
@@ -26,27 +26,27 @@ const MainTabNavigator = () => {
   const tabBarAnimation = new Animated.Value(1);
 
   return (
-    <Tab.Navigator
+        <Tab.Navigator
       screenOptions={({ route }) => ({
-        headerShown: false, // Ensure no header is shown
+        headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-
+    
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Map') {
             iconName = focused ? 'map' : 'map-outline';
           } else if (route.name === 'Bus Stops') {
-            iconName = focused ? 'bus' : 'bus-outline';
+            iconName = focused ? 'bus' : 'bus'; // No "bus-outline" exists
           } else if (route.name === 'Transport') {
-            iconName = focused ? 'information-circle' : 'information-circle-outline';
+            iconName = focused ? 'information' : 'information-outline'; // Corrected
           } else if (route.name === 'Favorites') {
             iconName = focused ? 'heart' : 'heart-outline';
           } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
+            iconName = focused ? 'account' : 'account-outline';
           }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
+    
+          return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#acd4fd',
         tabBarInactiveTintColor: '#fff',

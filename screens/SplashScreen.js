@@ -10,7 +10,7 @@ const SplashScreen = () => {
     
     setTimeout(() => {
       navigation.navigate('Login');
-    }, 10000); // 10 seconds delay for the splash screen
+    }, 5000); // 10 seconds delay for the splash screen
   }, [navigation]);
 
   return (
@@ -19,8 +19,9 @@ const SplashScreen = () => {
         source={require('../assets/animations/FinalSplashScreen.json')} // Path to your JSON file
         autoPlay
         loop
-        speed={15} //the speed
+        speed={5} //the speed
         style={styles.lottieAnimation}
+        resizeMode="cover"
       />
     </View>
   );
