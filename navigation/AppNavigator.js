@@ -133,6 +133,7 @@ const RootNavigator = () => {
         <>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="MainTabNavigator" component={MainTabNavigator} />
+          <Stack.Screen name="Map" component={MapViewScreen} />
         </>
       )}
     </Stack.Navigator>
