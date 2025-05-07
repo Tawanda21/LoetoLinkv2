@@ -28,7 +28,7 @@ const MainTabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        headerShown: false,
+        headerShown: false, // Ensure no header is shown
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 
@@ -50,16 +50,13 @@ const MainTabNavigator = () => {
         },
         tabBarActiveTintColor: '#acd4fd',
         tabBarInactiveTintColor: '#fff',
-        headerShown: false,
         tabBarShowLabel: true,
-
         tabBarStyle: {
           position: 'absolute',
           height: 60,
           paddingBottom: 9,
           paddingTop: 8,
           backgroundColor: 'black',
-          
           left: '15%',
           right: '15%',
           bottom: 20,
@@ -72,7 +69,7 @@ const MainTabNavigator = () => {
           margin: 20,
         },
         tabBarHideOnKeyboard: false,
-        animationEnabled: false
+        animationEnabled: false,
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
@@ -88,12 +85,12 @@ const MainTabNavigator = () => {
 // Auth stack navigator
 const AuthStack = () => {
   return (
-    <Stack.Navigator 
-      screenOptions={{ 
-        headerShown: false,
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false, // Ensure no header is shown
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
         presentation: 'card',
-        animation: 'slide_from_right'
+        animation: 'slide_from_right',
       }}
     >
       <Stack.Screen name="Splash" component={SplashScreen} />
@@ -122,12 +119,12 @@ const RootNavigator = () => {
   }
 
   return (
-    <Stack.Navigator 
-      screenOptions={{ 
-        headerShown: false,
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false, // Ensure no header is shown
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
         presentation: 'card',
-        animation: 'slide_from_right'
+        animation: 'slide_from_right',
       }}
     >
       {isAuthenticated ? (
