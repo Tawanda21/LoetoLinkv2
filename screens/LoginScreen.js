@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Alert, Animated, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase'; // Adjust the import path as necessary
 import { useNavigation } from '@react-navigation/native';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { Platform } from 'react-native';
 
 const LoginScreen = () => {
   const navigation = useNavigation();
@@ -30,6 +34,66 @@ const LoginScreen = () => {
       Alert.alert('Registration Successful', 'Please check your email for verification.');
     }
   };
+
+  // Google Sign-In function
+  const signInWithGoogle = async () => {
+    const redirectUrl = AuthSession.makeRedirectUri({ useProxy: false });
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: redirectUrl }
+    });
+
+    if (error) {
+      Alert.alert('Google Sign-In failed', error.message);
+      return;
+    }
+    if (data?.url) {
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      // After OAuth, Supabase will handle the session.
+      // check if user is logged in and navigate:
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        navigation.reset({ index: 0, routes: [{ name: 'MainTabNavigator' }] });
+      }
+    }
+  };
+
+  // Apple Sign-In function (iOS only)
+  const signInWithApple = async () => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('Apple Sign-In is only available on iOS.');
+      return;
+    }
+    const redirectUrl = AuthSession.makeRedirectUri({ useProxy: false });
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'apple',
+      options: { redirectTo: redirectUrl }
+    });
+
+    if (error) {
+      Alert.alert('Apple Sign-In failed', error.message);
+      return;
+    }
+    if (data?.url) {
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        navigation.reset({ index: 0, routes: [{ name: 'MainTabNavigator' }] });
+      }
+    }
+  };
+
+  // Listen for auth state changes (handles OAuth redirect)
+  /*useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && session.user) {
+        navigation.reset({ index: 0, routes: [{ name: 'MainTabNavigator' }] });
+      }
+    });
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []); */
 
   useEffect(() => {
     const fadeIn = Animated.timing(fadeAnim, {
@@ -80,13 +144,13 @@ const LoginScreen = () => {
       </TouchableOpacity>
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.appleButton}>
+        <TouchableOpacity style={styles.appleButton} onPress={signInWithApple}>
           <Image
             source={require('../assets/apple-logo.png')}
             style={styles.appleIcon}
           />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.googleButton}>
+        <TouchableOpacity style={styles.googleButton} onPress={signInWithGoogle}>
           <Image
             source={require('../assets/google-logo.png')}
             style={[styles.googleIcon, { width: 20, height: 20 }]}
