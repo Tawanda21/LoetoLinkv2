@@ -25,7 +25,7 @@ const TransportInfoScreen = ({ navigation }) => {
       case 'Delayed':
         return '#364c84';
       case 'Very late':
-        return '#001F3F';
+        return 'black';
       default:
         return 'gray';
     }
@@ -69,7 +69,7 @@ const TransportInfoScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Your Route Information</Text>
+      <Text style={styles.text}></Text>
       <FlatList
         data={transports}
         keyExtractor={(item) => item.id}

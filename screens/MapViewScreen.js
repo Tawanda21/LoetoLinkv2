@@ -5,35 +5,29 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 const MapViewScreen = ({ route }) => {
   const { origin, destination } = route.params || {}; // Fallback to undefined if params are missing
 
-  if (!origin || !destination) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Route details are missing. Please try again.</Text>
-      </View>
-    );
-  }
-
   const [routeCoordinates, setRouteCoordinates] = useState([]);
 
   useEffect(() => {
-    const fetchRoute = async () => {
-      try {
-        const directionsUrl = `https://maps.gomaps.pro/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn`;
-        const response = await fetch(directionsUrl);
-        const directionsData = await response.json();
+    if (origin && destination) {
+      const fetchRoute = async () => {
+        try {
+          const directionsUrl = `https://maps.gomaps.pro/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn`;
+          const response = await fetch(directionsUrl);
+          const directionsData = await response.json();
 
-        if (directionsData.status === 'OK') {
-          const points = decodePolyline(directionsData.routes[0].overview_polyline.points);
-          setRouteCoordinates(points);
-        } else {
-          console.error('Failed to fetch directions:', directionsData.status);
+          if (directionsData.status === 'OK') {
+            const points = decodePolyline(directionsData.routes[0].overview_polyline.points);
+            setRouteCoordinates(points);
+          } else {
+            console.error('Failed to fetch directions:', directionsData.status);
+          }
+        } catch (error) {
+          console.error('Error fetching route:', error);
         }
-      } catch (error) {
-        console.error('Error fetching route:', error);
-      }
-    };
+      };
 
-    fetchRoute();
+      fetchRoute();
+    }
   }, [origin, destination]);
 
   const decodePolyline = (encoded) => {
@@ -72,14 +66,17 @@ const MapViewScreen = ({ route }) => {
       <MapView
         style={styles.map}
         initialRegion={{
-          latitude: origin.latitude,
-          longitude: origin.longitude,
+          latitude: origin?.latitude || -24.6586, // Default latitude if origin is missing
+          longitude: origin?.longitude || 25.9086, // Default longitude if origin is missing
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
       >
-        <Marker coordinate={origin} title="Origin" />
-        <Marker coordinate={destination} title="Destination" />
+        {/* Render markers if origin and destination are provided */}
+        {origin && <Marker coordinate={origin} title="Origin" />}
+        {destination && <Marker coordinate={destination} title="Destination" />}
+
+        {/* Render the route if coordinates are available */}
         {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}

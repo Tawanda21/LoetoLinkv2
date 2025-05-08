@@ -1,8 +1,26 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 
 const ProfileScreen = ({ navigation }) => {
-  const Profile = []
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          onPress: () => console.log("Logout canceled"),
+          style: "cancel",
+        },
+        {
+          text: "Logout",
+          onPress: () => navigation.replace('Login'), // Replace with your login screen name
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.text}>Profile Screen</Text>
@@ -19,8 +37,8 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={styles.buttonText}>Change Language</Text>
       </TouchableOpacity>
       
-      <TouchableOpacity style={[styles.button, { backgroundColor: '#dce2ef' }]} onPress={() => {}}>
-        <Text style={[styles.buttonText, { color: 'black' }]}>Logout</Text>
+      <TouchableOpacity style={[styles.button, { backgroundColor: '#660F24' }]} onPress={handleLogout}>
+        <Text style={[styles.buttonText, { color: 'white' }]}>Logout</Text>
       </TouchableOpacity>
       
     </View>
