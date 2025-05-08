@@ -10,10 +10,25 @@ const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Function to handle user login
   const signInWithEmail = async () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) Alert.alert(error.message);
-    else navigation.reset({ index: 0, routes: [{ name: 'MainTabNavigator' }] });
+    if (error) {
+      Alert.alert('Login Failed', error.message);
+    } else {
+      Alert.alert('Login Successful', 'Welcome back!');
+      navigation.reset({ index: 0, routes: [{ name: 'MainTabNavigator' }] }); // Navigate to the main app
+    }
+  };
+
+  // Function to handle user registration
+  const signUpWithEmail = async () => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      Alert.alert('Registration Failed', error.message);
+    } else {
+      Alert.alert('Registration Successful', 'Please check your email for verification.');
+    }
   };
 
   useEffect(() => {
@@ -60,8 +75,7 @@ const LoginScreen = () => {
       <TouchableOpacity style={styles.button} onPress={signInWithEmail}>
         <Text style={styles.buttonText}>Sign In</Text>
       </TouchableOpacity>
-
-      <TouchableOpacity style={styles.newButton} onPress={() => {}}>
+      <TouchableOpacity style={styles.newButton} onPress={signUpWithEmail}>
         <Text style={styles.buttonText}>I'm New</Text>
       </TouchableOpacity>
 
@@ -71,7 +85,6 @@ const LoginScreen = () => {
             source={require('../assets/apple-logo.png')}
             style={styles.appleIcon}
           />
-
         </TouchableOpacity>
         <TouchableOpacity style={styles.googleButton}>
           <Image
@@ -80,7 +93,7 @@ const LoginScreen = () => {
           />
         </TouchableOpacity>
       </View>
-      
+
       <TouchableOpacity
         style={styles.guestButton}
         onPress={() =>
@@ -92,7 +105,7 @@ const LoginScreen = () => {
       >
         <Text style={styles.guestButtonText}>Continue as Guest</Text>
         <Animated.Image
-          source={require('../assets/arrow-right.png')}
+          source={require('../assets/arrow-right.png')} // Ensure this path is correct
           style={[styles.arrowIcon, { opacity: fadeAnim }]}
         />
       </TouchableOpacity>
@@ -229,9 +242,7 @@ const styles = StyleSheet.create({
     width: '25%',
     alignItems: 'center',
     justifyContent: 'center',
-    
     shadowColor: '#000',
-
     shadowOffset: {
       width: 0,
       height: 2,
@@ -250,14 +261,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 25,
   },
-
   guestButtonText: {
     color: '#666',
     textAlign: 'center',
     fontSize: 16,
-    marginRight: 10,
   },
-
   arrowIcon: {
     width: 20,
     height: 20,
