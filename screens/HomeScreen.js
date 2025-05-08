@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import * as Location from 'expo-location';
 import haversine from 'haversine-distance';
+import UserHeader from '../components/UserHeader';
 
 const HomeScreen = () => {
   const [from, setFrom] = useState('');
@@ -102,6 +103,7 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
+      <UserHeader />
       <TextInput
         style={styles.input}
         placeholder="From..."

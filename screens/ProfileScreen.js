@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import UserHeader from '../components/UserHeader';
 
 const ProfileScreen = ({ navigation }) => {
   const handleLogout = () => {
@@ -23,6 +24,7 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <UserHeader />
       <Text style={styles.text}>Profile Screen</Text>
       
       <TouchableOpacity style={[styles.button, { backgroundColor: '#001F3F'}]} onPress={() => {}}>
