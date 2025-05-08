@@ -16,6 +16,7 @@ const HomeScreen = () => {
 
     try {
       // Fetch stops from Supabase
+      //just tryna see if  it will pull if i make a commit
       const { data: stops, error: stopsError } = await supabase.from('stops').select('*');
       if (stopsError) throw stopsError;
 
