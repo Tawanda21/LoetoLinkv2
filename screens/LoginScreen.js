@@ -140,7 +140,7 @@ const LoginScreen = () => {
         <Text style={styles.buttonText}>Sign In</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.newButton} onPress={signUpWithEmail}>
-        <Text style={styles.buttonText}>I'm New</Text>
+        <Text style={styles.buttonText}>Sign Up</Text>
       </TouchableOpacity>
 
       <View style={styles.buttonContainer}>
