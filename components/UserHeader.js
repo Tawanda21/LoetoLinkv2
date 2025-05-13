@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { Ionicons } from '@expo/vector-icons';
 
 const fallbackAvatar = require('../assets/avatar.jpg');
 
-const UserHeader = () => {
+const UserHeader = ({ minimal = false }) => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -30,6 +29,16 @@ const UserHeader = () => {
     fetchUser();
   }, []);
 
+  if (minimal) {
+    // Render only the profile picture
+    return (
+      <Image
+        source={user?.avatar ? { uri: user.avatar } : fallbackAvatar}
+        style={styles.avatarLarge}
+      />
+    );
+  }
+
   return (
     <View style={styles.header}>
       <Image
@@ -39,9 +48,6 @@ const UserHeader = () => {
       <Text style={styles.greeting}>
         Hey, <Text style={styles.name}>{user?.name || 'User'}</Text>
       </Text>
-      <TouchableOpacity>
-        <Ionicons name="notifications-outline" size={28} color="#333" />
-      </TouchableOpacity>
     </View>
   );
 };
@@ -53,8 +59,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     margin: 10,
     marginTop: 40,
-    padding: 16,
-    borderRadius: 16,
+    padding: 10,
+    borderRadius: 50,
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -64,8 +70,13 @@ const styles = StyleSheet.create({
   avatar: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 50,
     marginRight: 16,
+  },
+  avatarLarge: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
   },
   greeting: {
     flex: 1,
