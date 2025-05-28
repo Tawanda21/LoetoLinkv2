@@ -112,7 +112,7 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={styles.headerContainer}>
         <Text style={styles.logoText}>LoetoLink</Text>
         <Image
           source={require('../assets/logo.jpg')}
@@ -196,6 +196,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 20,
   },
+  headerContainer: {
+    alignItems: 'center', // Center items horizontally
+    marginBottom: 20, // Add some space below the logo
+  },
   header: {
     position: 'absolute',
     top: 20,
@@ -204,14 +208,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoText: {
-    fontSize: 24,
+    fontSize: 40,
     fontWeight: 'bold',
-    marginRight: 10,
+    textAlign: 'center',
+    marginBottom: 10,
+    fontFamily: 'Arial', // Change to a more attractive font
   },
   splashImage: {
-    width: 40,
-    height: 40,
+    width: 100,
+    height: 100,
     resizeMode: 'contain',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.5, // Darken the shadow
+    shadowRadius: 30, // Increase the shadow radius
+    elevation: 5,
+    backgroundColor: 'white',
+    borderRadius: 15, // Add a borderRadius for rounded corners
   },
   title: {
     fontSize: 24,

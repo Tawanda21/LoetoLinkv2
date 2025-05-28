@@ -1,90 +1,292 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Dimensions, Text } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, Dimensions, Text, TouchableOpacity, Button } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
+import * as Location from 'expo-location';
+import haversine from 'haversine-distance';
+import StopListComponent from '../components/StopListComponent';
+import Modal from 'react-native-modal'; // Import react-native-modal
 
 const MapViewScreen = ({ route }) => {
-  const { origin, destination } = route.params || {}; // Fallback to undefined if params are missing
+  const { origin, destination, waypoints, routeWaypoints } = route.params || {};
+  const [userLocation, setUserLocation] = useState(null);
+  const [closestPointIndex, setClosestPointIndex] = useState(null);
+  const [detailedWaypoints, setDetailedWaypoints] = useState([]);
+  const [initialRegion, setInitialRegion] = useState({ // Set Gaborone as the default
+    latitude: -24.6282, // Gaborone latitude
+    longitude: 25.9231, // Gaborone longitude
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
+  const [isModalVisible, setModalVisible] = useState(false); // State for modal visibility
+  const mapRef = useRef(null); // Ref for the MapView
 
-  const [routeCoordinates, setRouteCoordinates] = useState([]);
+  const [mapType, setMapType] = useState('standard'); // 'standard' or 'satellite'
+  const [trafficEnabled, setTrafficEnabled] = useState(false);
+  const [streetViewEnabled, setStreetViewEnabled] = useState(false);
+
+  const [filteredRouteWaypoints, setFilteredRouteWaypoints] = useState([]); // Add filteredRouteWaypoints state
 
   useEffect(() => {
-    if (origin && destination) {
-      const fetchRoute = async () => {
-        try {
-          const directionsUrl = `https://maps.gomaps.pro/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn`;
-          const response = await fetch(directionsUrl);
-          const directionsData = await response.json();
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Permission to access location was denied');
+        return;
+      }
 
-          if (directionsData.status === 'OK') {
-            const points = decodePolyline(directionsData.routes[0].overview_polyline.points);
-            setRouteCoordinates(points);
-          } else {
-            console.error('Failed to fetch directions:', directionsData.status);
-          }
-        } catch (error) {
-          console.error('Error fetching route:', error);
-        }
+      let location = await Location.getCurrentPositionAsync({});
+      setUserLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (waypoints) {
+      const interpolatedWaypoints = interpolateWaypoints(waypoints, 10);
+      setDetailedWaypoints(interpolatedWaypoints);
+    }
+  }, [waypoints]);
+
+  useEffect(() => {
+    if (userLocation && detailedWaypoints) {
+      findClosestPointOnRoute(userLocation, detailedWaypoints);
+    }
+  }, [userLocation, detailedWaypoints]);
+
+  useEffect(() => {
+    // Set initial region based on origin or routeWaypoints
+    if (origin) {
+      setInitialRegion({
+        latitude: origin.latitude,
+        longitude: origin.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      });
+    } else if (routeWaypoints && routeWaypoints.length > 0) {
+      setInitialRegion({
+        latitude: parseFloat(routeWaypoints[0].latitude),
+        longitude: parseFloat(routeWaypoints[0].longitude),
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      });
+    }
+  }, [origin, routeWaypoints]);
+
+  useEffect(() => {
+    if (routeWaypoints && origin && destination) {
+      const fromStop = routeWaypoints.find(
+        stop => Math.abs(parseFloat(stop.latitude) - origin.latitude) < 0.0001 &&
+                Math.abs(parseFloat(stop.longitude) - origin.longitude) < 0.0001
+      );
+      const toStop = routeWaypoints.find(
+        stop => Math.abs(parseFloat(stop.latitude) - destination.latitude) < 0.0001 &&
+                Math.abs(parseFloat(stop.longitude) - destination.longitude) < 0.0001
+      );
+
+      if (fromStop && toStop) {
+        const fromOrder = fromStop.stop_order;
+        const toOrder = toStop.stop_order;
+        const filtered = routeWaypoints.filter(
+          stop => stop.stop_order >= fromOrder && stop.stop_order <= toOrder
+        );
+        setFilteredRouteWaypoints(filtered);
+      } else {
+        setFilteredRouteWaypoints(routeWaypoints);
+      }
+    }
+  }, [routeWaypoints, origin, destination]);
+
+  const interpolateWaypoints = (waypoints, numPoints) => {
+    const interpolated = [];
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const start = waypoints[i];
+      const end = waypoints[i + 1];
+
+      for (let j = 0; j < numPoints; j++) {
+        const ratio = j / numPoints;
+        const latitude = start.latitude + (end.latitude - start.latitude) * ratio;
+        const longitude = start.longitude + (end.longitude - start.longitude) * ratio;
+        interpolated.push({ latitude, longitude });
+      }
+    }
+    interpolated.push(waypoints[waypoints.length - 1]); // Add the last waypoint
+    return interpolated;
+  };
+
+  const findClosestPointOnRoute = (userLocation, waypoints) => {
+    let minDistance = Infinity;
+    let closestIndex = null;
+
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const start = waypoints[i];
+      const end = waypoints[i + 1];
+
+      const distanceToSegment = distanceToLineSegment(userLocation, start, end);
+
+      if (distanceToSegment < minDistance) {
+        minDistance = distanceToSegment;
+        closestIndex = i;
+      }
+    }
+
+    setClosestPointIndex(closestIndex);
+  };
+
+  const distanceToLineSegment = (point, start, end) => {
+    const A = point.latitude - start.latitude;
+    const B = point.longitude - start.longitude;
+    const C = end.latitude - start.latitude;
+    const D = end.longitude - start.longitude;
+
+    const dotProduct = A * C + B * D;
+    const segmentLengthSquared = C * C + D * D;
+
+    let param = -1;
+    if (segmentLengthSquared !== 0) {
+      param = dotProduct / segmentLengthSquared;
+    }
+
+    let nearestPoint;
+
+    if (param < 0) {
+      nearestPoint = start;
+    } else if (param > 1) {
+      nearestPoint = end;
+    } else {
+      nearestPoint = {
+        latitude: start.latitude + param * C,
+        longitude: start.longitude + param * D,
       };
-
-      fetchRoute();
-    }
-  }, [origin, destination]);
-
-  const decodePolyline = (encoded) => {
-    let points = [];
-    let index = 0, len = encoded.length;
-    let lat = 0, lng = 0;
-
-    while (index < len) {
-      let b, shift = 0, result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
-      lng += dlng;
-
-      points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
     }
 
-    return points;
+    return haversine(point, nearestPoint);
+  };
+
+  const handleZoomIn = () => {
+    if (mapRef.current && initialRegion) {
+      mapRef.current.animateToRegion(
+        {
+          ...initialRegion,
+          latitudeDelta: initialRegion.latitudeDelta / 2,
+          longitudeDelta: initialRegion.longitudeDelta / 2,
+        },
+        200
+      );
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (mapRef.current && initialRegion) {
+      mapRef.current.animateToRegion(
+        {
+          ...initialRegion,
+          latitudeDelta: initialRegion.latitudeDelta * 2,
+          longitudeDelta: initialRegion.longitudeDelta * 2,
+        },
+        200
+      );
+    }
+  };
+
+  const toggleMapType = () => {
+    setMapType(mapType === 'standard' ? 'satellite' : 'standard');
+  };
+
+  const toggleTraffic = () => {
+    setTrafficEnabled(!trafficEnabled);
+  };
+
+  const toggleStreetView = () => {
+    setStreetViewEnabled(!streetViewEnabled);
+  };
+
+  const toggleModal = () => {
+    setModalVisible(!isModalVisible);
   };
 
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef} // Attach the ref
         style={styles.map}
-        initialRegion={{
-          latitude: origin?.latitude || -24.6586, // Default latitude if origin is missing
-          longitude: origin?.longitude || 25.9086, // Default longitude if origin is missing
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
+        initialRegion={initialRegion} // Use initialRegion state
+        showsUserLocation={true}
+        mapType={mapType} // Set map type
+        trafficEnabled={trafficEnabled}
       >
-        {/* Render markers if origin and destination are provided */}
         {origin && <Marker coordinate={origin} title="Origin" />}
         {destination && <Marker coordinate={destination} title="Destination" />}
 
-        {/* Render the route if coordinates are available */}
-        {routeCoordinates.length > 0 && (
+        {detailedWaypoints && (
           <Polyline
-            coordinates={routeCoordinates}
+            coordinates={detailedWaypoints}
             strokeColor="#0000FF"
             strokeWidth={3}
           />
         )}
+
+        {closestPointIndex !== null && detailedWaypoints && closestPointIndex < detailedWaypoints.length - 1 && (
+          <Polyline
+            coordinates={[detailedWaypoints[closestPointIndex], detailedWaypoints[closestPointIndex + 1]]}
+            strokeColor="#FF0000"
+            strokeWidth={5}
+          />
+        )}
+
+        {filteredRouteWaypoints && filteredRouteWaypoints.map((stop, index) => (
+          <Marker
+            key={index}
+            coordinate={{ latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) }}
+            title={stop.name}
+          />
+        ))}
       </MapView>
+
+      {/* Controls Container */}
+      <View style={styles.controlsContainer}>
+        {/* Zoom Buttons */}
+        <View style={styles.zoomButtonsContainer}>
+          <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn}>
+            <Text style={styles.zoomButtonText}>+</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut}>
+            <Text style={styles.zoomButtonText}>-</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Map Type Toggle */}
+        <View style={styles.mapTypeContainer}>
+          <TouchableOpacity style={styles.mapTypeButton} onPress={toggleMapType}>
+            <Text style={styles.mapTypeButtonText}>{mapType === 'standard' ? 'Satellite' : 'Standard'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.mapTypeButton} onPress={toggleTraffic}>
+            <Text style={styles.mapTypeButtonText}>{trafficEnabled ? 'Hide Traffic' : 'Show Traffic'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.mapTypeButton} onPress={toggleStreetView}>
+            <Text style={styles.mapTypeButtonText}>{streetViewEnabled ? 'Hide Street View' : 'Show Street View'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.showListButton}
+        onPress={toggleModal}
+      >
+        <Text style={styles.showListButtonText}>Show Stop List</Text>
+      </TouchableOpacity>
+
+      <Modal isVisible={isModalVisible} onBackdropPress={toggleModal}>
+        <View style={[styles.modalContent, { maxHeight: 400 }]}>
+          <Text style={styles.bottomSheetTitle}>Route Stops</Text>
+          {/* Remove debug JSON after confirming data */}
+          <StopListComponent routeWaypoints={filteredRouteWaypoints} />
+          <TouchableOpacity onPress={toggleModal} style={{marginTop: 20, alignSelf: 'center'}}>
+            <Text style={{color: '#018abe', fontWeight: 'bold', fontSize: 16}}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -99,9 +301,70 @@ const styles = StyleSheet.create({
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height,
   },
-  errorText: {
+  controlsContainer: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    flexDirection: 'column',
+    alignItems: 'flex-end', // Align items to the right
+  },
+  zoomButtonsContainer: {
+    flexDirection: 'column',
+    backgroundColor: 'transparent',
+    marginBottom: 10,
+  },
+  zoomButton: {
+    backgroundColor: '#018abe',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  zoomButtonText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  mapTypeContainer: {
+    flexDirection: 'column',
+  },
+  mapTypeButton: {
+    backgroundColor: '#018abe',
+    padding: 10,
+    borderRadius: 15,
+    marginBottom: 10,
+  },
+  mapTypeButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  showListButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    backgroundColor: '#018abe',
+    padding: 15,
+    borderRadius: 15,
+    alignItems: 'center',
+  },
+  showListButtonText: {
+    color: 'white',
     fontSize: 16,
-    color: 'red',
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: 22,
+    borderRadius: 4,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  bottomSheetTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
   },
 });
 

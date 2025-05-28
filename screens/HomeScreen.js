@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, TextInput, FlatList, TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
+import { View, TextInput, FlatList, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import * as Location from 'expo-location';
 import haversine from 'haversine-distance';
 import UserHeader from '../components/UserHeader';
+import { decodePolyline } from '../utils';
 
 const HomeScreen = () => {
   const [from, setFrom] = useState('');
@@ -12,6 +13,8 @@ const HomeScreen = () => {
   const [stops, setStops] = useState([]);
   const [filteredStops, setFilteredStops] = useState([]);
   const navigation = useNavigation();
+  const [fromStopData, setFromStopData] = useState(null); // Store the selected "From" stop data
+  const [isLoading, setIsLoading] = useState(false); // Add loading state
 
   useEffect(() => {
     const fetchStops = async () => {
@@ -25,20 +28,55 @@ const HomeScreen = () => {
     fetchStops();
   }, []);
 
-  const handleInputChange = (text, type) => {
-    const filtered = stops.filter((stop) =>
-      stop.name.toLowerCase().includes(text.toLowerCase())
-    );
-    setFilteredStops(filtered);
+  const handleInputChange = async (text, type) => {
+    let query = supabase.from('stops').select('*').ilike('name', `%${text}%`);
+
+    // If "From" stop is selected, filter stops by the same route_id
+    if (type === 'to' && fromStopData) {
+      query = query.eq('route_id', fromStopData.route_id);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      Alert.alert('Error', 'Failed to fetch stops.');
+      return;
+    }
+
+    setFilteredStops(data);
 
     if (type === 'from') setFrom(text);
     else setTo(text);
   };
 
   const handleSelectStop = (stop, type) => {
-    if (type === 'from') setFrom(stop.name);
+    if (type === 'from') {
+      setFrom(stop.name);
+      setFromStopData(stop); // Store the selected "From" stop data
+    }
     else setTo(stop.name);
     setFilteredStops([]);
+  };
+
+  const handleSwapStops = async () => {
+    const tempFrom = from;
+    const tempTo = to;
+
+    // Fetch the stop data for the "To" stop
+    const { data: toStopData, error: toStopError } = await supabase
+      .from('stops')
+      .select('*')
+      .eq('name', tempTo)
+      .single();
+
+    if (toStopError) {
+      Alert.alert('Error', 'Failed to fetch stop data after swap.');
+      return;
+    }
+
+    setFrom(tempTo);
+    setTo(tempFrom);
+    setFromStopData(toStopData || null); // Update fromStopData with the "To" stop data
   };
 
   const handleSearch = async () => {
@@ -47,28 +85,94 @@ const HomeScreen = () => {
       return;
     }
 
-    const fromStop = stops.find((stop) => stop.name.toLowerCase() === from.toLowerCase());
-    const toStop = stops.find((stop) => stop.name.toLowerCase() === to.toLowerCase());
+    setIsLoading(true); // Start loading
 
-    if (!fromStop || !toStop) {
-      Alert.alert('Error', 'One or both stops not found.');
-      return;
+    try {
+      // Fetch the stop details from the database based on the selected names
+      const { data: fromStopData, error: fromStopError } = await supabase
+        .from('stops')
+        .select('*')
+        .eq('name', from)
+        .single();
+
+      const { data: toStopData, error: toStopError } = await supabase
+        .from('stops')
+        .select('*')
+        .eq('name', to)
+        .single();
+
+      if (fromStopError || toStopError) {
+        Alert.alert('Error', 'One or both stops not found.');
+        return;
+      }
+
+      const fromStop = fromStopData;
+      const toStop = toStopData;
+
+      if (!fromStop || !toStop) {
+        Alert.alert('Error', 'One or both stops not found.');
+        return;
+      }
+
+      if (fromStop.route_id !== toStop.route_id) {
+        Alert.alert('Error', 'The selected stops are not on the same route.');
+        return;
+      }
+
+      if (fromStop.stop_order >= toStop.stop_order) {
+        Alert.alert('Error', '"From" stop must come before "To" stop in the route.');
+        return;
+      }
+
+      // Fetch all waypoints for the route, ordered by stop_order
+      const { data: routeWaypoints, error: routeWaypointsError } = await supabase
+        .from('stops')
+        .select('latitude, longitude, stop_order, name') // Include the name
+        .eq('route_id', fromStop.route_id)
+        .order('stop_order', { ascending: true });
+
+      if (routeWaypointsError) {
+        Alert.alert('Error', 'Failed to fetch route waypoints.');
+        return;
+      }
+
+      // Function to fetch detailed route between two waypoints
+      const getDetailedRoute = async (origin, destination) => {
+        try {
+          const directionsUrl = `https://maps.gomaps.pro/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn`;
+          const response = await fetch(directionsUrl);
+          const directionsData = await response.json();
+
+          if (directionsData.status === 'OK') {
+            return decodePolyline(directionsData.routes[0].overview_polyline.points);
+          } else {
+            console.error('Failed to fetch directions:', directionsData.status);
+            return [];
+          }
+        } catch (error) {
+          console.error('Error fetching route:', error);
+          return [];
+        }
+      };
+
+      // Combine detailed routes between each consecutive stop
+      let allWaypoints = [];
+      for (let i = 0; i < routeWaypoints.length - 1; i++) {
+        const origin = { latitude: parseFloat(routeWaypoints[i].latitude), longitude: parseFloat(routeWaypoints[i].longitude) };
+        const destination = { latitude: parseFloat(routeWaypoints[i + 1].latitude), longitude: parseFloat(routeWaypoints[i + 1].longitude) };
+        const detailedRoute = await getDetailedRoute(origin, destination);
+        allWaypoints = [...allWaypoints, ...detailedRoute];
+      }
+
+      navigation.navigate('Map', {
+        origin: { latitude: parseFloat(fromStop.latitude), longitude: parseFloat(fromStop.longitude) },
+        destination: { latitude: parseFloat(toStop.latitude), longitude: parseFloat(toStop.longitude) },
+        waypoints: allWaypoints,
+        routeWaypoints: routeWaypoints, // Pass the routeWaypoints array
+      });
+    } finally {
+      setIsLoading(false); // Stop loading
     }
-
-    if (fromStop.route_id !== toStop.route_id) {
-      Alert.alert('Error', 'The selected stops are not on the same route.');
-      return;
-    }
-
-    if (fromStop.stop_order >= toStop.stop_order) {
-      Alert.alert('Error', '"From" stop must come before "To" stop in the route.');
-      return;
-    }
-
-    navigation.navigate('Map', {
-      origin: { latitude: fromStop.latitude, longitude: fromStop.longitude },
-      destination: { latitude: toStop.latitude, longitude: toStop.longitude },
-    });
   };
 
   const handleUseMyLocation = async () => {
@@ -98,59 +202,81 @@ const HomeScreen = () => {
     if (nearestStop) {
       setFrom(nearestStop.name);
       Alert.alert('Nearest Stop', `Nearest stop is ${nearestStop.name}`);
+    } else {
+      Alert.alert('No Stops Found', 'Could not find any stops nearby.');
     }
   };
 
   return (
     <View style={styles.container}>
       <UserHeader />
-      <TextInput
-        style={styles.input}
-        placeholder="From..."
-        value={from}
-        onChangeText={(text) => handleInputChange(text, 'from')}
-      />
-      {filteredStops.length > 0 && (
-        <FlatList
-          style={styles.dropdown}
-          data={filteredStops}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => handleSelectStop(item, 'from')}
-            >
-              <Text>{item.name}</Text>
-            </TouchableOpacity>
-          )}
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="From..."
+          value={from}
+          onChangeText={(text) => handleInputChange(text, 'from')}
         />
-      )}
-      <TextInput
-        style={styles.input}
-        placeholder="To..."
-        value={to}
-        onChangeText={(text) => handleInputChange(text, 'to')}
-      />
-      {filteredStops.length > 0 && (
-        <FlatList
-          style={styles.dropdown}
-          data={filteredStops}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => handleSelectStop(item, 'to')}
-            >
-              <Text>{item.name}</Text>
-            </TouchableOpacity>
-          )}
+        {filteredStops.length > 0 && (
+          <FlatList
+            style={styles.dropdown}
+            data={filteredStops}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => handleSelectStop(item, 'from')}
+              >
+                <Text>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </View>
+      <TouchableOpacity style={styles.swapButton} onPress={handleSwapStops}>
+        <Text style={styles.swapButtonText}>&#8645;</Text>
+      </TouchableOpacity>
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="To..."
+          value={to}
+          onChangeText={(text) => handleInputChange(text, 'to')}
+          editable={from !== ''} // Disable the "To" input if "From" is not selected
         />
-      )}
-      <TouchableOpacity style={styles.button} onPress={handleUseMyLocation}>
+        {filteredStops.length > 0 && (
+          <FlatList
+            style={styles.dropdown}
+            data={filteredStops}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => handleSelectStop(item, 'to')}
+              >
+                <Text>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </View>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={handleUseMyLocation}
+        disabled={isLoading} // Disable the button while loading
+      >
         <Text style={styles.buttonText}>Use My Location</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={handleSearch}>
-        <Text style={styles.buttonText}>Find Route</Text>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={handleSearch}
+        disabled={isLoading} // Disable the button while loading
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color="#fff" /> // Show loading animation
+        ) : (
+          <Text style={styles.buttonText}>Find Route</Text> // Show button text
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -161,12 +287,14 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  inputContainer: {
+    marginBottom: 15,
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 15,
     padding: 15,
-    marginBottom: 15,
     backgroundColor: 'white',
   },
   dropdown: {
@@ -190,6 +318,21 @@ const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  swapButton: {
+    backgroundColor: '#018abe',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 15,
+    alignSelf: 'center',
+  },
+  swapButtonText: {
+    color: 'white',
+    fontSize: 25,
     fontWeight: 'bold',
   },
 });

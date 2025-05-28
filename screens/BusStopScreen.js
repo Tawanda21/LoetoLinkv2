@@ -1,18 +1,32 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity } from 'react-native';
-import Button from '../components/Button';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
-const BusStopScreen = ({ navigation }) => {
+const BusStopScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredStops, setFilteredStops] = useState([]);
-  
-  // Example bus stops data - replace with your actual data
-  const busStops = [
-    { id: '1', name: 'Gamecity bus stop' },
-    { id: '2', name: 'Apex bus stop' },
-    { id: '3', name: 'BAC bus stop' },
-    // Add more bus stops as needed
-  ];
+  const [busStops, setBusStops] = useState([]);
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    const fetchBusStops = async () => {
+      const { data, error } = await supabase
+        .from('stops')
+        .select('*')
+        .order('name', { ascending: true }); // Order by name
+
+      if (error) {
+        Alert.alert('Error', 'Failed to fetch bus stops.');
+        return;
+      }
+
+      setBusStops(data);
+      setFilteredStops(data); // Initialize filtered stops with all stops
+    };
+
+    fetchBusStops();
+  }, []);
 
   const handleSearch = (text) => {
     setSearchQuery(text);
@@ -20,6 +34,16 @@ const BusStopScreen = ({ navigation }) => {
       stop.name.toLowerCase().includes(text.toLowerCase())
     );
     setFilteredStops(filtered);
+  };
+
+  const handleShowRoute = (stop) => {
+    // Navigate to MapViewScreen and display the route for the selected stop
+    navigation.navigate('Map', {
+      origin: { latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) },
+      destination: { latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) }, // Set destination to the same stop
+      waypoints: [{ latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) }], // Set waypoints to the selected stop
+      routeWaypoints: [stop], // Pass the selected stop as a route waypoint
+    });
   };
 
   return (
@@ -31,23 +55,30 @@ const BusStopScreen = ({ navigation }) => {
           value={searchQuery}
           onChangeText={handleSearch}
         />
-        {searchQuery.length > 0 && (
-          <FlatList
-            style={styles.dropdown}
-            data={filteredStops}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.dropdownItemContainer}>
-                <Text style={styles.dropdownItem}>{item.name}</Text>
-                <TouchableOpacity style={styles.routeButton}>
-                  <Text style={styles.routeButtonText}>Show Route</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          />
-        )}
       </View>
 
+      <FlatList
+        style={styles.table}
+        data={filteredStops}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={() => (
+          <View style={styles.headerRow}>
+            <Text style={[styles.headerCell, { flex: 3 }]}>Name</Text>
+            <Text style={[styles.headerCell, { flex: 1 }]}>Actions</Text>
+          </View>
+        )}
+        renderItem={({ item }) => (
+          <View style={styles.row}>
+            <Text style={[styles.cell, { flex: 3 }]}>{item.name}</Text>
+            <TouchableOpacity
+              style={[styles.routeButton, { flex: 1 }]}
+              onPress={() => handleShowRoute(item)}
+            >
+              <Text style={styles.routeButtonText}>Show Route</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      />
     </View>
   );
 };
@@ -55,7 +86,6 @@ const BusStopScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-
     backgroundColor: '#dce2ef',
     padding: 20,
   },
@@ -67,41 +97,47 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     padding: 10,
     borderRadius: 10,
-    marginBottom: 5,
+    marginBottom: 10,
   },
-  dropdown: {
+  table: {
+    flex: 1,
     backgroundColor: 'white',
-    maxHeight: 200,
     borderRadius: 10,
   },
-  dropdownItemContainer: {
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 15,
+    backgroundColor: '#22303f',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+  },
+  headerCell: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    paddingVertical: 15,
+    paddingHorizontal: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    alignItems: 'center',
   },
-  dropdownItem: {
-    flex: 1,
+  cell: {
+    fontSize: 16,
   },
   routeButton: {
     backgroundColor: '#22303f',
-    padding: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 5,
-    marginLeft: 10,
+    alignItems: 'center',
   },
   routeButtonText: {
     color: 'white',
-    fontSize: 12,
-  },
-  text: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  button: {
-    borderRadius: 50,
+    fontSize: 14,
   },
 });
 
