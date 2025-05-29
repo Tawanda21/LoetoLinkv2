@@ -14,7 +14,7 @@ const BusStopScreen = () => {
       const { data, error } = await supabase
         .from('stops')
         .select('*')
-        .order('name', { ascending: true }); // Order by name
+        .order('name', { ascending: true });
 
       if (error) {
         Alert.alert('Error', 'Failed to fetch bus stops.');
@@ -22,7 +22,7 @@ const BusStopScreen = () => {
       }
 
       setBusStops(data);
-      setFilteredStops(data); // Initialize filtered stops with all stops
+      setFilteredStops(data);
     };
 
     fetchBusStops();
@@ -37,12 +37,11 @@ const BusStopScreen = () => {
   };
 
   const handleShowRoute = (stop) => {
-    // Navigate to MapViewScreen and display the route for the selected stop
     navigation.navigate('Map', {
       origin: { latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) },
-      destination: { latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) }, // Set destination to the same stop
-      waypoints: [{ latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) }], // Set waypoints to the selected stop
-      routeWaypoints: [stop], // Pass the selected stop as a route waypoint
+      destination: { latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) },
+      waypoints: [{ latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) }],
+      routeWaypoints: [stop],
     });
   };
 
@@ -57,16 +56,15 @@ const BusStopScreen = () => {
         />
       </View>
 
+      <View style={styles.headerRow}>
+        <Text style={[styles.headerCell, { flex: 3 }]}>Name</Text>
+        <Text style={[styles.headerCell, { flex: 1 }]}>Actions</Text>
+      </View>
+
       <FlatList
         style={styles.table}
         data={filteredStops}
         keyExtractor={(item) => item.id.toString()}
-        ListHeaderComponent={() => (
-          <View style={styles.headerRow}>
-            <Text style={[styles.headerCell, { flex: 3 }]}>Name</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Actions</Text>
-          </View>
-        )}
         renderItem={({ item }) => (
           <View style={styles.row}>
             <Text style={[styles.cell, { flex: 3 }]}>{item.name}</Text>
@@ -87,30 +85,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#dce2ef',
-    padding: 20,
+    paddingTop: 50,
   },
   searchContainer: {
     width: '100%',
     marginBottom: 20,
+    paddingHorizontal: 20,
   },
   searchBar: {
     backgroundColor: 'white',
-    padding: 10,
+    padding: 15,
     borderRadius: 10,
     marginBottom: 10,
   },
   table: {
     flex: 1,
     backgroundColor: 'white',
-    borderRadius: 10,
   },
   headerRow: {
     flexDirection: 'row',
     backgroundColor: '#22303f',
     paddingVertical: 10,
     paddingHorizontal: 15,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
   },
   headerCell: {
     color: 'white',
@@ -130,8 +126,8 @@ const styles = StyleSheet.create({
   },
   routeButton: {
     backgroundColor: '#22303f',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderRadius: 5,
     alignItems: 'center',
   },

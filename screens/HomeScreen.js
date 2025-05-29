@@ -209,7 +209,7 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
-      <UserHeader />
+      <UserHeader onAvatarPress={() => navigation.navigate('Profile')} />
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}

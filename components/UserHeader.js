@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 const fallbackAvatar = require('../assets/avatar.jpg');
 
-const UserHeader = () => {
+const UserHeader = ({ onAvatarPress }) => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -30,12 +30,19 @@ const UserHeader = () => {
     fetchUser();
   }, []);
 
+  // Fix the avatar URL logic
+  const getAvatarSource = () => {
+    if (user?.avatar) {
+      return { uri: user.avatar };
+    }
+    return fallbackAvatar;
+  };
+
   return (
     <View style={styles.header}>
-      <Image
-        source={user?.avatar ? { uri: user.avatar } : fallbackAvatar}
-        style={styles.avatar}
-      />
+      <TouchableOpacity onPress={onAvatarPress}>
+        <Image source={getAvatarSource()} style={styles.avatar} />
+      </TouchableOpacity>
       <Text style={styles.greeting}>
         Hey, <Text style={styles.name}>{user?.name || 'User'}</Text>
       </Text>

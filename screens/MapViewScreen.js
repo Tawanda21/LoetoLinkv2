@@ -303,10 +303,10 @@ const styles = StyleSheet.create({
   },
   controlsContainer: {
     position: 'absolute',
-    top: 20,
+    top: 80,
     right: 20,
     flexDirection: 'column',
-    alignItems: 'flex-end', // Align items to the right
+    alignItems: 'flex-end',
   },
   zoomButtonsContainer: {
     flexDirection: 'column',
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   zoomButton: {
-    backgroundColor: '#018abe',
+    backgroundColor: 'rgba(1, 138, 190, 0.8)',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   mapTypeButton: {
-    backgroundColor: '#018abe',
+    backgroundColor: 'rgba(1, 138, 190, 0.8)',
     padding: 10,
     borderRadius: 15,
     marginBottom: 10,
@@ -343,9 +343,9 @@ const styles = StyleSheet.create({
   },
   showListButton: {
     position: 'absolute',
-    top: 20,
+    top: 80,
     left: 20,
-    backgroundColor: '#018abe',
+    backgroundColor: 'rgba(1, 138, 190, 0.8)',
     padding: 15,
     borderRadius: 15,
     alignItems: 'center',
