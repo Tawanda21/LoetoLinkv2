@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
+import CustomPopup from '../components/CustomPopup';
 
 //working perfectly fine
 
@@ -15,15 +16,28 @@ const LoginScreen = () => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [popup, setPopup] = useState({ visible: false, title: '', message: '', onConfirm: null });
 
   // Function to handle user login
   const signInWithEmail = async () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      Alert.alert('Login Failed', error.message);
+      setPopup({
+        visible: true,
+        title: 'Login Failed',
+        message: error.message,
+        onConfirm: () => setPopup({ ...popup, visible: false }),
+      });
     } else {
-      Alert.alert('Login Successful', 'Welcome back!');
-      navigation.reset({ index: 0, routes: [{ name: 'MainTabNavigator' }] }); // Navigate to the main app
+      setPopup({
+        visible: true,
+        title: 'Login Successful',
+        message: 'Welcome back!',
+        onConfirm: () => {
+          setPopup({ ...popup, visible: false });
+          navigation.reset({ index: 0, routes: [{ name: 'MainTabNavigator' }] });
+        },
+      });
     }
   };
 
@@ -121,6 +135,13 @@ const LoginScreen = () => {
           style={styles.splashImage}
         />
       </View>
+      <CustomPopup
+        visible={popup.visible}
+        title={popup.title}
+        message={popup.message}
+        onConfirm={popup.onConfirm}
+        onCancel={() => setPopup({ ...popup, visible: false })}
+        />
       <Text style={styles.title}>Welcome!</Text>
       <TextInput
         style={styles.input}

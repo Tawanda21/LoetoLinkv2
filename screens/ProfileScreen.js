@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import UserHeader from '../components/UserHeader';
 import { supabase } from '../lib/supabase';
+import CustomPopup from '../components/CustomPopup';
 
 const ProfileScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [popup, setPopup] = useState({ visible: false, title: '', message: '', onConfirm: null });
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -17,19 +19,16 @@ const ProfileScreen = ({ navigation }) => {
   }, []);
 
   const handleLogout = () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Logout", onPress: async () => {
-            await supabase.auth.signOut();
-            navigation.replace('Login');
-          }
-        },
-      ],
-      { cancelable: true }
-    );
+    setPopup({
+      visible: true,
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      onConfirm: async () => {
+        setPopup({ ...popup, visible: false });
+        await supabase.auth.signOut();
+        navigation.replace('Login');
+      },
+    });
   };
 
   const avatarUrl =
@@ -47,10 +46,19 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.card}>
+      <View style={[styles.card, { marginTop: -50 }]}>
         <View style={styles.avatarContainer}>
           <Image source={{ uri: avatarUrl }} style={styles.avatar} />
         </View>
+        <CustomPopup
+          visible={popup.visible}
+          title={popup.title}
+          message={popup.message}
+          onClose={() => setPopup({ ...popup, visible: false })}
+          onConfirm={popup.onConfirm}
+          conformText={popup.title === 'Logout' ? 'Logout' : 'OK'}
+          cancelText={popup.title === 'Logout' ? 'Cancel' : 'Cancel'}
+          />
         <Text style={styles.name}>
           {user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || 'User'}
         </Text>
@@ -60,9 +68,6 @@ const ProfileScreen = ({ navigation }) => {
           </TouchableOpacity>
           <TouchableOpacity style={[styles.button, { backgroundColor: '#364c84' }]} onPress={() => {}}>
             <Text style={styles.buttonText}>Theme</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.button, { backgroundColor: '#95b1ee' }]} onPress={() => {}}>
-            <Text style={styles.buttonText}>Language</Text>
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={[styles.buyButton]} onPress={handleLogout}>
