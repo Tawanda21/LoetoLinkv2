@@ -23,6 +23,7 @@
     "expo-location": "~18.0.10",
     "expo-status-bar": "~2.0.1",
     "expo-web-browser": "~14.0.2",
+    "geolib": "^3.3.4",
     "haversine-distance": "^1.2.3",
     "lottie-react-native": "^7.1.0",
     "react": "18.3.1",

@@ -1,70 +1,144 @@
 import React from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
-import haversine from 'haversine-distance';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
-const AVERAGE_SPEED_KMH = 40;
+const formatDistance = (meters) => {
+  if (meters == null) return '';
+  if (meters < 1000) return `${meters} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+};
 
 const StopListComponent = ({ routeWaypoints }) => {
   if (!routeWaypoints || routeWaypoints.length === 0) {
-    return <Text>No stops found.</Text>;
+    return <Text style={{ textAlign: 'center', color: '#888' }}>No stops available.</Text>;
   }
 
-  let cumulative = 0;
-  const stopsWithETA = routeWaypoints.map((stop, idx, arr) => {
-    let eta = 0;
-    if (idx > 0) {
-      const prev = arr[idx - 1];
-      const distanceMeters = haversine(
-        { latitude: parseFloat(prev.latitude), longitude: parseFloat(prev.longitude) },
-        { latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) }
-      );
-      const distanceKm = distanceMeters / 1000;
-      eta = (distanceKm / AVERAGE_SPEED_KMH) * 60;
-      cumulative += eta;
-    }
-    return { ...stop, eta, cumulativeEta: cumulative };
-  });
-
-  const renderItem = ({ item, index }) => (
-    <View style={styles.stopItem}>
-      <Text style={styles.stopName}>{item.name}</Text>
-      {index > 0 && (
-        <Text style={styles.stopETA}>
-          ETA from previous: {item.eta.toFixed(1)} min | Total ETA: {item.cumulativeEta.toFixed(1)} min
-        </Text>
-      )}
-    </View>
-  );
-
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={stopsWithETA}
-        keyExtractor={(_, idx) => idx.toString()}
-        renderItem={renderItem}
-        showsVerticalScrollIndicator={true}
-      />
-    </View>
+    <FlatList
+      data={routeWaypoints}
+      keyExtractor={(item, idx) => idx.toString()}
+      renderItem={({ item, index }) => (
+        <View style={styles.row}>
+          {/* Timeline */}
+          <View style={styles.timeline}>
+            {/* Top line */}
+            {index !== 0 && <View style={styles.line} />}
+            {/* Circle */}
+            <View
+              style={[
+                styles.circle,
+                index === 0 ? styles.circleActive : null,
+                index === routeWaypoints.length - 1 ? styles.circleTerminal : null,
+              ]}
+            />
+            {/* Bottom line */}
+            {index !== routeWaypoints.length - 1 && <View style={styles.line} />}
+          </View>
+          {/* Stop info */}
+          <View style={styles.info}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.time}>{item.time || '--:--'}</Text>
+              {item.eta && (
+                <Text style={styles.eta}>  ({item.eta})</Text>
+              )}
+              {item.delay && (
+                <Text style={styles.delay}>  +{item.delay} min</Text>
+              )}
+            </View>
+            <Text style={styles.name}>{item.name}</Text>
+            {item.platform && (
+              <Text style={styles.platform}>Platform: {item.platform}</Text>
+            )}
+            {item.distance != null && (
+              <Text style={styles.distance}>
+                <Ionicons name="navigate" size={14} color="#018abe" /> {formatDistance(item.distance)} from you
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+    />
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    maxHeight: 300,
-    padding: 10,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 32, // Increased spacing between stops
+    minHeight: 56,    // Increased minimum height for each row
   },
-  stopItem: {
-    paddingVertical: 8,
+  timeline: {
+    width: 40, // Increased width for timeline area
+    alignItems: 'center',
+    position: 'relative',
+  },
+  line: {
+    width: 3, // Thicker line
+    height: 28, // Longer line for more spacing
+    backgroundColor: '#018abe',
+    position: 'absolute',
+    left: 18.5, // Centered for bigger circle
+    zIndex: 0,
+  },
+  circle: {
+    width: 28, // Larger icon
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    borderWidth: 5,
+    borderColor: '#018abe',
+    marginVertical: 0,
+    zIndex: 1,
+    marginTop: 0,
+    marginBottom: 0,
+  },
+  circleActive: {
+    backgroundColor: '#018abe',
+  },
+  circleTerminal: {
+    borderColor: '#43a047',
+  },
+  info: {
+    marginLeft: 18, // More space between icon and text
+    flex: 1,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#f0f0f0',
+    paddingBottom: 10,
   },
-  stopName: {
+  time: {
+    fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 16,
+    color: '#018abe',
   },
-  stopETA: {
+  eta: {
+    fontSize: 15,
+    color: '#888',
+    marginLeft: 4,
+  },
+  delay: {
+    fontSize: 15,
+    color: '#d32f2f',
+    marginLeft: 4,
+    fontWeight: 'bold',
+  },
+  name: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#222',
+    marginTop: 4,
+  },
+  platform: {
     fontSize: 14,
-    color: '#555',
+    color: '#888',
+    marginTop: 2,
+  },
+  distance: {
+    fontSize: 13,
+    color: '#018abe',
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 

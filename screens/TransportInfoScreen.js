@@ -1,150 +1,92 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import StopListComponent from '../components/StopListComponent';
+import { getDistance } from 'geolib'; // npm install geolib
 
-const TransportInfoScreen = ({ navigation }) => {
-  const [expandedCard, setExpandedCard] = React.useState(null);
-  const animationValues = React.useRef({});
-  const timeoutRef = React.useRef(null);
+const TransportInfoScreen = ({ route }) => {
+  // These should be passed via navigation
+  const {
+    routeInfo,           // { name, color }
+    routeWaypoints,      // [{ name, time, eta, delay, platform, latitude, longitude }]
+    userLocation,        // { latitude, longitude }
+    totalDuration,       // e.g. "30 min"
+    eta,                 // e.g. "08:15"
+    delays,              // e.g. { summary: "5 min delay at Mainstation" }
+  } = route?.params || {};
 
-  const transports = [
-    { id: '1', name: 'Combi 1', status: 'On time' },
-    { id: '2', name: 'Combi 2', status: 'Delayed' },
-    { id: '3', name: 'Combi 3', status: 'Very late' },
-  ];
-
-  React.useEffect(() => {
-    transports.forEach((transport) => {
-      animationValues.current[transport.id] = new Animated.Value(100);
-    });
-  }, [transports]);
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'On time':
-        return '#95b1ee';
-      case 'Delayed':
-        return '#364c84';
-      case 'Very late':
-        return 'black';
-      default:
-        return 'gray';
-    }
-  };
-
-  const toggleExpand = (id) => {
-    const isExpanded = expandedCard === id;
-
-    // Clear any existing timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-
-    // If a different card is expanded, collapse it first
-    if (expandedCard && expandedCard !== id) {
-      Animated.timing(animationValues.current[expandedCard], {
-        toValue: 100,
-        duration: 300,
-        useNativeDriver: false,
-      }).start();
-    }
-
-    setExpandedCard(isExpanded ? null : id);
-
-    Animated.timing(animationValues.current[id], {
-      toValue: isExpanded ? 100 : 300,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-
-    if (!isExpanded) {
-      timeoutRef.current = setTimeout(() => {
-        Animated.timing(animationValues.current[id], {
-          toValue: 100,
-          duration: 300,
-          useNativeDriver: false,
-        }).start(() => setExpandedCard(null));
-      }, 10000);
-    }
-  };
+  // Add distance to each stop if userLocation is available
+  const waypointsWithDistance = routeWaypoints?.map(stop => ({
+    ...stop,
+    distance: userLocation
+      ? getDistance(
+          { latitude: userLocation.latitude, longitude: userLocation.longitude },
+          { latitude: stop.latitude, longitude: stop.longitude }
+        )
+      : null,
+  }));
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}></Text>
-      <FlatList
-        data={transports}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <Animated.View
-            style={[
-              styles.transportItem,
-              { height: animationValues.current[item.id], backgroundColor: getStatusColor(item.status) },
-            ]}
-          >
-            <TouchableOpacity onPress={() => toggleExpand(item.id)} style={styles.cardHeader}>
-              <Text style={styles.transportText}>{item.name}</Text>
-              <Text style={styles.transportText}>{item.status}</Text>
-            </TouchableOpacity>
-            {expandedCard === item.id && (
-              <View style={styles.miniMap}>
-                <Text style={styles.miniMapText}>Mini Map Placeholder</Text>
-              </View>
-            )}
-          </Animated.View>
-        )}
-        style={styles.flatList}
-      />
+    <View style={styles.fullScreen}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
+        <View style={styles.card}>
+          <Text style={[styles.title, { color: routeInfo?.color || '#364c84' }]}>
+            {routeInfo?.name || 'Your Trip'}
+          </Text>
+          <Text style={styles.subtitle}>
+            ETA: {eta || '--:--'} | Total: {totalDuration || '--'} 
+          </Text>
+          {delays?.summary && (
+            <Text style={styles.delayText}>Delays: {delays.summary}</Text>
+          )}
+          <StopListComponent
+            routeWaypoints={waypointsWithDistance}
+            showDetails // You can use this prop to show extra info in StopListComponent
+          />
+        </View>
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  fullScreen: {
+    flex: 1,
+    backgroundColor: '#f5f6fa',
+  },
+  scrollView: {
+    flex: 1,
+  },
   container: {
+    padding: 16,
+    backgroundColor: '#f5f6fa',
+    flexGrow: 1,
+  },
+  card: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#dce2ef',
-    padding: 10,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  text: {
-    fontSize: 36,
-    fontWeight: 'bold',
-  },
-  flatList: {
-    width: '100%',
-  },
-  transportItem: {
-    marginVertical: 5,
-    borderRadius: 15,
-    width: '100%',
-    overflow: 'hidden',
     backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 18,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    marginTop: 20,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 10,
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 2,
   },
-  transportText: {
-    color: 'white',
-    fontSize: 16,
+  subtitle: {
+    fontSize: 15,
+    color: '#888',
+    marginBottom: 8,
   },
-  miniMap: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#e0e0e0',
-    height: 200,
-  },
-  miniMapText: {
-    color: '#555',
-    fontSize: 14,
+  delayText: {
+    fontSize: 15,
+    color: '#d32f2f',
+    marginBottom: 12,
+    fontWeight: 'bold',
   },
 });
 

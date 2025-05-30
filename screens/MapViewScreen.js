@@ -285,8 +285,12 @@ const MapViewScreen = ({ route }) => {
         <Ionicons name="menu" size={32} color="white" />
       </TouchableOpacity>
 
-      {/* Hamburger Menu Modal */}
-      <Modal isVisible={isMenuVisible} onBackdropPress={() => setMenuVisible(false)}>
+       <Modal 
+        isVisible={isMenuVisible} 
+        onBackdropPress={() => setMenuVisible(false)}
+        animationIn="zoomIn"
+        animationInTiming={500}
+      >
         <View style={styles.menuModal}>
           <TouchableOpacity style={styles.menuItem} onPress={toggleMapType}>
             <Text style={styles.menuItemText}>{mapType === 'standard' ? 'Satellite' : 'Standard'}</Text>
@@ -306,9 +310,14 @@ const MapViewScreen = ({ route }) => {
         </View>
       </Modal>
 
-      {/* Stop List Modal (unchanged) */}
-      <Modal isVisible={isModalVisible} onBackdropPress={toggleModal}>
-        <View style={[styles.modalContent, { maxHeight: 400 }]}>
+      {/* Stop List Modal */}
+      <Modal 
+        isVisible={isModalVisible} 
+        onBackdropPress={toggleModal}
+        animationIn="zoomIn"
+        animationInTiming={500}
+      >
+        <View style={[styles.modalContent,{ maxHeight: Dimensions.get('window').height * 0.85, width: Dimensions.get('window').width * 0.95, alignSelf: 'center'}]}>
           <Text style={styles.bottomSheetTitle}>Route Stops</Text>
           {route_name && (
             <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#018abe', marginBottom: 10 }}>
@@ -392,8 +401,15 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: 'white',
     padding: 22,
-    borderRadius: 4,
+    borderRadius: 24, // More rounded corners
     borderColor: 'rgba(0, 0, 0, 0.1)',
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    // Shadow for Android
+    elevation: 12,
   },
   bottomSheetTitle: {
     fontSize: 20,
