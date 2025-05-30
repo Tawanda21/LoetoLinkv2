@@ -11,7 +11,8 @@ const HomeScreen = () => {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [stops, setStops] = useState([]);
-  const [filteredStops, setFilteredStops] = useState([]);
+  const [filteredFromStops, setFilteredFromStops] = useState([]);
+  const [filteredToStops, setFilteredToStops] = useState([]);
   const navigation = useNavigation();
   const [fromStopData, setFromStopData] = useState(null); // Store the selected "From" stop data
   const [isLoading, setIsLoading] = useState(false); // Add loading state
@@ -30,32 +31,42 @@ const HomeScreen = () => {
 
   const handleInputChange = async (text, type) => {
     let query = supabase.from('stops').select('*').ilike('name', `%${text}%`);
-
-    // If "From" stop is selected, filter stops by the same route_id
     if (type === 'to' && fromStopData) {
       query = query.eq('route_id', fromStopData.route_id);
     }
-
     const { data, error } = await query;
-
     if (error) {
       Alert.alert('Error', 'Failed to fetch stops.');
       return;
     }
-
-    setFilteredStops(data);
-
-    if (type === 'from') setFrom(text);
-    else setTo(text);
+    if (type === 'from') {
+      setFrom(text);
+      setFilteredFromStops(data);
+    } else {
+      setTo(text);
+      setFilteredToStops(data);
+    }
   };
 
   const handleSelectStop = (stop, type) => {
     if (type === 'from') {
       setFrom(stop.name);
-      setFromStopData(stop); // Store the selected "From" stop data
+      setFromStopData(stop);
+      setFilteredFromStops([]);
+    } else {
+      setTo(stop.name);
+      setFilteredToStops([]);
     }
-    else setTo(stop.name);
-    setFilteredStops([]);
+  };
+
+  const clearFrom = () => {
+    setFrom('');
+    setFilteredFromStops([]);
+    setFromStopData(null);
+  };
+  const clearTo = () => {
+    setTo('');
+    setFilteredToStops([]);
   };
 
   const handleSwapStops = async () => {
@@ -179,34 +190,60 @@ const HomeScreen = () => {
   };
 
   const handleUseMyLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    // Check permission status
+    const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+    console.log('Location permission status:', status);
+
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Location permission is required to use this feature.');
-      return;
+      if (canAskAgain) {
+        const { status: requestStatus } = await Location.requestForegroundPermissionsAsync();
+        console.log('Requested location permission, new status:', requestStatus);
+        if (requestStatus !== 'granted') {
+          Alert.alert('Permission Denied', 'Location permission is required to use this feature.');
+          return;
+        }
+      } else {
+        Alert.alert('Permission Denied', 'Location permission is not enabled. Please enable it in your device settings.');
+        return;
+      }
     }
 
-    const location = await Location.getCurrentPositionAsync({});
-    const { latitude, longitude } = location.coords;
+    try {
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+      console.log('My current location:', latitude, longitude);
 
-    let nearestStop = null;
-    let minDistance = Infinity;
+      let nearestStop = null;
+      let minDistance = Infinity;
 
-    stops.forEach((stop) => {
-      const distance = haversine(
-        { latitude, longitude },
-        { latitude: stop.latitude, longitude: stop.longitude }
-      );
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearestStop = stop;
+      stops.forEach((stop) => {
+        const stopLat = Number(stop.latitude);
+        const stopLng = Number(stop.longitude);
+        const distance = haversine(
+          { latitude: Number(latitude), longitude: Number(longitude) },
+          { latitude: stopLat, longitude: stopLng }
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestStop = stop;
+        }
+      });
+
+      if (nearestStop) {
+        setFrom(nearestStop.name);
+        setFromStopData(nearestStop);
+        setFilteredFromStops([]);
+        // Show relation in alert
+        Alert.alert(
+          'Nearest Stop',
+          `Your location:\nLat: ${latitude}\nLng: ${longitude}\n\nNearest stop: ${nearestStop.name}\nLat: ${nearestStop.latitude}\nLng: ${nearestStop.longitude}\n\nDistance: ${(minDistance / 1000).toFixed(2)} km`
+        );
+      } else {
+        Alert.alert('No Stops Found', 'Could not find any stops nearby.');
       }
-    });
-
-    if (nearestStop) {
-      setFrom(nearestStop.name);
-      Alert.alert('Nearest Stop', `Nearest stop is ${nearestStop.name}`);
-    } else {
-      Alert.alert('No Stops Found', 'Could not find any stops nearby.');
+    } catch (error) {
+      console.log('Error getting location:', error);
+      Alert.alert('Error', 'Could not get your current location.');
     }
   };
 
@@ -214,16 +251,23 @@ const HomeScreen = () => {
     <View style={styles.container}>
       <UserHeader onAvatarPress={() => navigation.navigate('Profile')} />
       <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="From..."
-          value={from}
-          onChangeText={(text) => handleInputChange(text, 'from')}
-        />
-        {filteredStops.length > 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            placeholder="From..."
+            value={from}
+            onChangeText={(text) => handleInputChange(text, 'from')}
+          />
+          {from.length > 0 && (
+            <TouchableOpacity onPress={clearFrom} style={{ marginLeft: -35, zIndex: 1 }}>
+              <Text style={{ fontSize: 18, color: '#888' }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {filteredFromStops.length > 0 && (
           <FlatList
             style={styles.dropdown}
-            data={filteredStops}
+            data={filteredFromStops}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
@@ -240,17 +284,24 @@ const HomeScreen = () => {
         <Text style={styles.swapButtonText}>&#8645;</Text>
       </TouchableOpacity>
       <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="To..."
-          value={to}
-          onChangeText={(text) => handleInputChange(text, 'to')}
-          editable={from !== ''} // Disable the "To" input if "From" is not selected
-        />
-        {filteredStops.length > 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            placeholder="To..."
+            value={to}
+            onChangeText={(text) => handleInputChange(text, 'to')}
+            editable={from !== ''}
+          />
+          {to.length > 0 && (
+            <TouchableOpacity onPress={clearTo} style={{ marginLeft: -35, zIndex: 1 }}>
+              <Text style={{ fontSize: 18, color: '#888' }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {filteredToStops.length > 0 && (
           <FlatList
             style={styles.dropdown}
-            data={filteredStops}
+            data={filteredToStops}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
