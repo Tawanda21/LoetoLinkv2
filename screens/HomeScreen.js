@@ -319,6 +319,7 @@ const HomeScreen = () => {
           destination,
           waypoints: allWaypoints,
           routeWaypoints: completeWaypoints,
+          route_name: routeData?.route_name || routeData?.name, // <-- Add this line
         },
       });
     } finally {

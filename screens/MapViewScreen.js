@@ -8,7 +8,7 @@ import Modal from 'react-native-modal'; // Import react-native-modal
 import { Ionicons } from '@expo/vector-icons'; // Add this for hamburger icon
 
 const MapViewScreen = ({ route }) => {
-  const { origin, destination, waypoints, routeWaypoints } = route.params || {};
+  const { origin, destination, waypoints, routeWaypoints, route_name } = route.params || {};
   const [userLocation, setUserLocation] = useState(null);
   const [closestPointIndex, setClosestPointIndex] = useState(null);
   const [detailedWaypoints, setDetailedWaypoints] = useState([]);
@@ -310,6 +310,11 @@ const MapViewScreen = ({ route }) => {
       <Modal isVisible={isModalVisible} onBackdropPress={toggleModal}>
         <View style={[styles.modalContent, { maxHeight: 400 }]}>
           <Text style={styles.bottomSheetTitle}>Route Stops</Text>
+          {route_name && (
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#018abe', marginBottom: 10 }}>
+              Riding: {route_name}
+            </Text>
+          )}
           <StopListComponent routeWaypoints={filteredRouteWaypoints} />
           <TouchableOpacity onPress={toggleModal} style={{marginTop: 20, alignSelf: 'center'}}>
             <Text style={{color: '#018abe', fontWeight: 'bold', fontSize: 16}}>Close</Text>
