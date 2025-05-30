@@ -238,8 +238,13 @@ const MapViewScreen = ({ route }) => {
         {filteredRouteWaypoints && filteredRouteWaypoints.map((stop, index) => (
           <Marker
             key={index}
-            coordinate={{ latitude: parseFloat(stop.latitude), longitude: parseFloat(stop.longitude) }}
+            coordinate={{ 
+              latitude: parseFloat(stop.latitude), 
+              longitude: parseFloat(stop.longitude) 
+            }}
             title={stop.name}
+            // Add different pin color for terminals
+            pinColor={stop.stop_order === 0 || stop.stop_order === 999 ? 'green' : 'red'}
           />
         ))}
       </MapView>

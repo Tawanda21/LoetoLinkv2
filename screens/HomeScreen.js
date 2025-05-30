@@ -30,21 +30,88 @@ const HomeScreen = () => {
   }, []);
 
   const handleInputChange = async (text, type) => {
-    let query = supabase.from('stops').select('*').ilike('name', `%${text}%`);
-    if (type === 'to' && fromStopData) {
-      query = query.eq('route_id', fromStopData.route_id);
-    }
-    const { data, error } = await query;
-    if (error) {
-      Alert.alert('Error', 'Failed to fetch stops.');
+    if (!text.trim()) {
+      type === 'from' ? setFilteredFromStops([]) : setFilteredToStops([]);
       return;
     }
-    if (type === 'from') {
-      setFrom(text);
-      setFilteredFromStops(data);
-    } else {
-      setTo(text);
-      setFilteredToStops(data);
+
+    try {
+      // First, search in stops table
+      const { data: stopData, error: stopError } = await supabase
+        .from('stops')
+        .select('*')
+        .ilike('name', `%${text}%`);
+
+      if (stopError) {
+        console.error('Error fetching stops:', stopError);
+        return;
+      }
+
+      // Next, search in combi_routes table for terminals
+      const { data: routeData, error: routeError } = await supabase
+        .from('combi_routes')
+        .select('*');
+
+      if (routeError) {
+        console.error('Error fetching routes:', routeError);
+        return;
+      }
+
+      // Create terminal entries from routes
+      const terminalEntries = [];
+      routeData.forEach(route => {
+        // Add origin terminals
+        if (route.origin.toLowerCase().includes(text.toLowerCase())) {
+          terminalEntries.push({
+            id: `origin-${route.id}`,
+            name: route.origin,
+            latitude: route.origin_latitude,
+            longitude: route.origin_longitude,
+            route_id: route.id,
+            stop_order: 0,
+            isTerminal: true
+          });
+        }
+        
+        // Add destination terminals
+        if (route.destination.toLowerCase().includes(text.toLowerCase())) {
+          terminalEntries.push({
+            id: `destination-${route.id}`,
+            name: route.destination,
+            latitude: route.destination_latitude,
+            longitude: route.destination_longitude,
+            route_id: route.id,
+            stop_order: 999,
+            isTerminal: true
+          });
+        }
+      });
+
+      // Combine and filter results
+      let combinedResults;
+      
+      if (type === 'to' && fromStopData) {
+        // If "from" is selected, only show stops on the same route
+        combinedResults = [
+          ...stopData.filter(stop => stop.route_id === fromStopData.route_id),
+          ...terminalEntries.filter(terminal => terminal.route_id === fromStopData.route_id)
+        ];
+      } else {
+        // Otherwise show all matching results
+        combinedResults = [...stopData, ...terminalEntries];
+      }
+      
+      // Update state with filtered results
+      if (type === 'from') {
+        setFrom(text);
+        setFilteredFromStops(combinedResults);
+      } else {
+        setTo(text);
+        setFilteredToStops(combinedResults);
+      }
+    } catch (error) {
+      console.error('Error in handleInputChange:', error);
+      Alert.alert('Error', 'Failed to search for stops and terminals.');
     }
   };
 
@@ -99,7 +166,7 @@ const HomeScreen = () => {
     setIsLoading(true); // Start loading
 
     try {
-      // Fetch the stop details from the database based on the selected names
+      // Get the stop details
       const { data: fromStopData, error: fromStopError } = await supabase
         .from('stops')
         .select('*')
@@ -112,34 +179,51 @@ const HomeScreen = () => {
         .eq('name', to)
         .single();
 
-      if (fromStopError || toStopError) {
-        Alert.alert('Error', 'One or both stops not found.');
+      // Get the route details
+      const { data: routeData, error: routeError } = await supabase
+        .from('combi_routes')
+        .select('*')
+        .eq('id', fromStopData?.route_id)
+        .single();
+
+      if (routeError) {
+        Alert.alert('Error', 'Failed to fetch route details.');
         return;
       }
 
-      const fromStop = fromStopData;
-      const toStop = toStopData;
+      // Determine if using stops or terminals
+      const isFromTerminal = from === routeData.origin;
+      const isToTerminal = to === routeData.destination;
 
-      if (!fromStop || !toStop) {
-        Alert.alert('Error', 'One or both stops not found.');
-        return;
-      }
+      // Set the origin coordinates
+      const origin = isFromTerminal ? {
+        latitude: parseFloat(routeData.origin_latitude),
+        longitude: parseFloat(routeData.origin_longitude)
+      } : {
+        latitude: parseFloat(fromStopData.latitude),
+        longitude: parseFloat(fromStopData.longitude)
+      };
 
-      if (fromStop.route_id !== toStop.route_id) {
-        Alert.alert('Error', 'The selected stops are not on the same route.');
-        return;
-      }
+      // Set the destination coordinates
+      const destination = isToTerminal ? {
+        latitude: parseFloat(routeData.destination_latitude),
+        longitude: parseFloat(routeData.destination_longitude)
+      } : {
+        latitude: parseFloat(toStopData.latitude),
+        longitude: parseFloat(toStopData.longitude)
+      };
 
-      if (fromStop.stop_order >= toStop.stop_order) {
-        Alert.alert('Error', '"From" stop must come before "To" stop in the route.');
-        return;
-      }
-
-      // Fetch all waypoints for the route, ordered by stop_order
+      // Fetch waypoints including terminals if needed
       const { data: routeWaypoints, error: routeWaypointsError } = await supabase
         .from('stops')
-        .select('latitude, longitude, stop_order, name') // Include the name
-        .eq('route_id', fromStop.route_id)
+        .select(`
+          latitude, 
+          longitude, 
+          stop_order, 
+          name,
+          route_id
+        `)
+        .eq('route_id', fromStopData.route_id)
         .order('stop_order', { ascending: true });
 
       if (routeWaypointsError) {
@@ -147,15 +231,41 @@ const HomeScreen = () => {
         return;
       }
 
-      // Function to fetch detailed route between two waypoints
-      const getDetailedRoute = async (origin, destination) => {
+      // Replace the existing waypoints generation code
+      const getDetailedRoute = async (waypoints) => {
         try {
-          const directionsUrl = `https://maps.gomaps.pro/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn`;
+          const waypointsStr = waypoints
+            .map(wp => `${wp.latitude},${wp.longitude}`)
+            .join('|');
+
+          // Modified directions URL with additional parameters
+          const directionsUrl = `https://maps.gomaps.pro/maps/api/directions/json?` +
+            `origin=${waypoints[0].latitude},${waypoints[0].longitude}&` +
+            `destination=${waypoints[waypoints.length-1].latitude},${waypoints[waypoints.length-1].longitude}&` +
+            `waypoints=optimize:false|${waypointsStr}&` +
+            `mode=driving&` +
+            `alternatives=true&` +
+            `avoid=highways|ferries&` + // Avoid highways to prefer local roads
+            `key=AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn`;
+
           const response = await fetch(directionsUrl);
           const directionsData = await response.json();
 
           if (directionsData.status === 'OK') {
-            return decodePolyline(directionsData.routes[0].overview_polyline.points);
+            // Try to select the shortest route if alternatives are available
+            const routes = directionsData.routes;
+            let shortestRoute = routes[0];
+            let shortestDistance = Number.MAX_VALUE;
+
+            routes.forEach(route => {
+              const distance = route.legs.reduce((total, leg) => total + leg.distance.value, 0);
+              if (distance < shortestDistance) {
+                shortestDistance = distance;
+                shortestRoute = route;
+              }
+            });
+
+            return decodePolyline(shortestRoute.overview_polyline.points);
           } else {
             console.error('Failed to fetch directions:', directionsData.status);
             return [];
@@ -166,22 +276,49 @@ const HomeScreen = () => {
         }
       };
 
-      // Combine detailed routes between each consecutive stop
-      let allWaypoints = [];
-      for (let i = 0; i < routeWaypoints.length - 1; i++) {
-        const origin = { latitude: parseFloat(routeWaypoints[i].latitude), longitude: parseFloat(routeWaypoints[i].longitude) };
-        const destination = { latitude: parseFloat(routeWaypoints[i + 1].latitude), longitude: parseFloat(routeWaypoints[i + 1].longitude) };
-        const detailedRoute = await getDetailedRoute(origin, destination);
-        allWaypoints = [...allWaypoints, ...detailedRoute];
+      // Create complete waypoint list including terminals
+      let completeWaypoints = [];
+      
+      // Add origin terminal if starting from there
+      if (isFromTerminal) {
+        completeWaypoints.push({
+          latitude: parseFloat(routeData.origin_latitude),
+          longitude: parseFloat(routeData.origin_longitude),
+          name: routeData.origin,
+          stop_order: 0
+        });
       }
 
-      navigation.navigate('MainTabNavigator', { // Navigate to MainTabNavigator
-        screen: 'MapViewScreen', // Specify the MapViewScreen
-        params: { // Pass the parameters
-          origin: { latitude: parseFloat(fromStop.latitude), longitude: parseFloat(fromStop.longitude) },
-          destination: { latitude: parseFloat(toStop.latitude), longitude: parseFloat(toStop.longitude) },
+      // Add intermediate stops
+      completeWaypoints = [
+        ...completeWaypoints,
+        ...routeWaypoints.filter(stop => 
+          (isFromTerminal || stop.stop_order >= fromStopData.stop_order) &&
+          (!isToTerminal || stop.stop_order <= toStopData.stop_order)
+        )
+      ];
+
+      // Add destination terminal if ending there
+      if (isToTerminal) {
+        completeWaypoints.push({
+          latitude: parseFloat(routeData.destination_latitude),
+          longitude: parseFloat(routeData.destination_longitude),
+          name: routeData.destination,
+          stop_order: routeWaypoints.length + 1
+        });
+      }
+
+      // Get the continuous route
+      const allWaypoints = await getDetailedRoute(completeWaypoints);
+
+      // Navigate with the complete route
+      navigation.navigate('MainTabNavigator', {
+        screen: 'MapViewScreen',
+        params: {
+          origin,
+          destination,
           waypoints: allWaypoints,
-          routeWaypoints: routeWaypoints, // Pass the routeWaypoints array
+          routeWaypoints: completeWaypoints,
         },
       });
     } finally {
@@ -314,23 +451,15 @@ const HomeScreen = () => {
           />
         )}
       </View>
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleUseMyLocation}
-        disabled={isLoading} // Disable the button while loading
-      >
-        <Text style={styles.buttonText}>Use My Location</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleSearch}
-        disabled={isLoading} // Disable the button while loading
-      >
+      <TouchableOpacity style={styles.button} onPress={handleSearch} disabled={isLoading}>
         {isLoading ? (
-          <ActivityIndicator size="small" color="#fff" /> // Show loading animation
+          <ActivityIndicator size="small" color="white" />
         ) : (
-          <Text style={styles.buttonText}>Find Route</Text> // Show button text
+          <Text style={styles.buttonText}>Search</Text>
         )}
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.button} onPress={handleUseMyLocation}>
+        <Text style={styles.buttonText}>Use My Location</Text>
       </TouchableOpacity>
     </View>
   );
@@ -340,15 +469,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
+    backgroundColor: '#f9f9f9',
   },
   inputContainer: {
     marginBottom: 15,
   },
   input: {
+    height: 50,
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 15,
-    padding: 15,
+    paddingHorizontal: 15,
     backgroundColor: 'white',
   },
   dropdown: {
