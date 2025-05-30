@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import haversine from 'haversine-distance';
 import StopListComponent from '../components/StopListComponent';
 import Modal from 'react-native-modal'; // Import react-native-modal
+import { Ionicons } from '@expo/vector-icons'; // Add this for hamburger icon
 
 const MapViewScreen = ({ route }) => {
   const { origin, destination, waypoints, routeWaypoints } = route.params || {};
@@ -18,6 +19,7 @@ const MapViewScreen = ({ route }) => {
     longitudeDelta: 0.0421,
   });
   const [isModalVisible, setModalVisible] = useState(false); // State for modal visibility
+  const [isMenuVisible, setMenuVisible] = useState(false); // Add menu state
   const mapRef = useRef(null); // Ref for the MapView
 
   const [mapType, setMapType] = useState('standard'); // 'standard' or 'satellite'
@@ -206,14 +208,28 @@ const MapViewScreen = ({ route }) => {
     setModalVisible(!isModalVisible);
   };
 
+  // Center map on user location
+  const handleMyLocation = () => {
+    if (mapRef.current && userLocation) {
+      mapRef.current.animateToRegion(
+        {
+          ...userLocation,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        },
+        200
+      );
+    }
+  };
+
   return (
     <View style={styles.container}>
       <MapView
-        ref={mapRef} // Attach the ref
+        ref={mapRef}
         style={styles.map}
-        initialRegion={initialRegion} // Use initialRegion state
+        initialRegion={initialRegion}
         showsUserLocation={true}
-        mapType={mapType} // Set map type
+        mapType={mapType}
         trafficEnabled={trafficEnabled}
       >
         {origin && <Marker coordinate={origin} title="Origin" />}
@@ -249,9 +265,8 @@ const MapViewScreen = ({ route }) => {
         ))}
       </MapView>
 
-      {/* Controls Container */}
+      {/* Floating Zoom Buttons */}
       <View style={styles.controlsContainer}>
-        {/* Zoom Buttons */}
         <View style={styles.zoomButtonsContainer}>
           <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn}>
             <Text style={styles.zoomButtonText}>+</Text>
@@ -260,32 +275,41 @@ const MapViewScreen = ({ route }) => {
             <Text style={styles.zoomButtonText}>-</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Map Type Toggle */}
-        <View style={styles.mapTypeContainer}>
-          <TouchableOpacity style={styles.mapTypeButton} onPress={toggleMapType}>
-            <Text style={styles.mapTypeButtonText}>{mapType === 'standard' ? 'Satellite' : 'Standard'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.mapTypeButton} onPress={toggleTraffic}>
-            <Text style={styles.mapTypeButtonText}>{trafficEnabled ? 'Hide Traffic' : 'Show Traffic'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.mapTypeButton} onPress={toggleStreetView}>
-            <Text style={styles.mapTypeButtonText}>{streetViewEnabled ? 'Hide Street View' : 'Show Street View'}</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
+      {/* Hamburger Menu Button */}
       <TouchableOpacity
-        style={styles.showListButton}
-        onPress={toggleModal}
+        style={styles.hamburgerButton}
+        onPress={() => setMenuVisible(true)}
       >
-        <Text style={styles.showListButtonText}>Show Stop List</Text>
+        <Ionicons name="menu" size={32} color="white" />
       </TouchableOpacity>
 
+      {/* Hamburger Menu Modal */}
+      <Modal isVisible={isMenuVisible} onBackdropPress={() => setMenuVisible(false)}>
+        <View style={styles.menuModal}>
+          <TouchableOpacity style={styles.menuItem} onPress={toggleMapType}>
+            <Text style={styles.menuItemText}>{mapType === 'standard' ? 'Satellite' : 'Standard'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={toggleTraffic}>
+            <Text style={styles.menuItemText}>{trafficEnabled ? 'Hide Traffic' : 'Show Traffic'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={toggleModal}>
+            <Text style={styles.menuItemText}>Show Stop List</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={handleMyLocation}>
+            <Text style={styles.menuItemText}>My Location</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.menuItem, {marginTop: 10}]} onPress={() => setMenuVisible(false)}>
+            <Text style={[styles.menuItemText, {color: '#018abe'}]}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Stop List Modal (unchanged) */}
       <Modal isVisible={isModalVisible} onBackdropPress={toggleModal}>
         <View style={[styles.modalContent, { maxHeight: 400 }]}>
           <Text style={styles.bottomSheetTitle}>Route Stops</Text>
-          {/* Remove debug JSON after confirming data */}
           <StopListComponent routeWaypoints={filteredRouteWaypoints} />
           <TouchableOpacity onPress={toggleModal} style={{marginTop: 20, alignSelf: 'center'}}>
             <Text style={{color: '#018abe', fontWeight: 'bold', fontSize: 16}}>Close</Text>
@@ -370,6 +394,31 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 10,
+  },
+  hamburgerButton: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    backgroundColor: 'rgba(1, 138, 190, 0.9)',
+    padding: 10,
+    borderRadius: 25,
+    zIndex: 10,
+  },
+  menuModal: {
+    backgroundColor: 'white',
+    padding: 22,
+    borderRadius: 10,
+    alignItems: 'stretch',
+  },
+  menuItem: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  menuItemText: {
+    fontSize: 18,
+    color: '#222',
+    fontWeight: 'bold',
   },
 });
 
