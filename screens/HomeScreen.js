@@ -164,11 +164,14 @@ const HomeScreen = () => {
         allWaypoints = [...allWaypoints, ...detailedRoute];
       }
 
-      navigation.navigate('Map', {
-        origin: { latitude: parseFloat(fromStop.latitude), longitude: parseFloat(fromStop.longitude) },
-        destination: { latitude: parseFloat(toStop.latitude), longitude: parseFloat(toStop.longitude) },
-        waypoints: allWaypoints,
-        routeWaypoints: routeWaypoints, // Pass the routeWaypoints array
+      navigation.navigate('MainTabNavigator', { // Navigate to MainTabNavigator
+        screen: 'MapViewScreen', // Specify the MapViewScreen
+        params: { // Pass the parameters
+          origin: { latitude: parseFloat(fromStop.latitude), longitude: parseFloat(fromStop.longitude) },
+          destination: { latitude: parseFloat(toStop.latitude), longitude: parseFloat(toStop.longitude) },
+          waypoints: allWaypoints,
+          routeWaypoints: routeWaypoints, // Pass the routeWaypoints array
+        },
       });
     } finally {
       setIsLoading(false); // Stop loading

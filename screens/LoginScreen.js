@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Alert, Animated, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Image, StyleSheet, Text, TextInput, TouchableOpacity, View, ImageBackground } from 'react-native';
 import { supabase } from '../lib/supabase'; // Adjust the import path as necessary
 import { useNavigation } from '@react-navigation/native';
 import * as WebBrowser from 'expo-web-browser';
@@ -113,88 +113,100 @@ const LoginScreen = () => {
   }, []);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.logoText}>LoetoLink</Text>
-        <Image
-          source={require('../assets/logo.jpg')}
-          style={styles.splashImage}
-        />
-      </View>
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoCapitalize="none"
-      />
-      <TouchableOpacity style={styles.button} onPress={signInWithEmail}>
-        <Text style={styles.buttonText}>Sign In</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.newButton} onPress={signUpWithEmail}>
-        <Text style={styles.buttonText}>Sign Up</Text>
-      </TouchableOpacity>
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.appleButton} onPress={signInWithApple}>
+    <ImageBackground
+      source={require('../assets/background.jpg')} // Use your desired background image
+      style={styles.backgroundImage}
+    >
+      <View style={styles.container}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.logoText}>LoetoLink</Text>
           <Image
-            source={require('../assets/apple-logo.png')}
-            style={styles.appleIcon}
+            source={require('../assets/logo.jpg')}
+            style={styles.splashImage}
+          />
+        </View>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoCapitalize="none"
+        />
+        <TouchableOpacity style={styles.button} onPress={signInWithEmail}>
+          <Text style={styles.buttonText}>Sign In</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.newButton} onPress={signUpWithEmail}>
+          <Text style={styles.buttonText}>Sign Up</Text>
+        </TouchableOpacity>
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.appleButton} onPress={signInWithApple}>
+            <Image
+              source={require('../assets/apple-logo.png')}
+              style={styles.appleIcon}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.googleButton} onPress={signInWithGoogle}>
+            <Image
+              source={require('../assets/google-logo.png')}
+              style={[styles.googleIcon, { width: 20, height: 20 }]}
+            />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.guestButton}
+          onPress={() =>
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'MainTabNavigator', params: { screen: 'Map' } }],
+            })
+          }
+        >
+          <Text style={styles.guestButtonText}>Continue as Guest</Text>
+          <Animated.Image
+            source={require('../assets/arrow-right.png')} // Ensure this path is correct
+            style={[styles.arrowIcon, { opacity: fadeAnim }]}
           />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.googleButton} onPress={signInWithGoogle}>
-          <Image
-            source={require('../assets/google-logo.png')}
-            style={[styles.googleIcon, { width: 20, height: 20 }]}
-          />
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity
-        style={styles.guestButton}
-        onPress={() =>
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'MainTabNavigator', params: { screen: 'Map' } }],
-          })
-        }
-      >
-        <Text style={styles.guestButtonText}>Continue as Guest</Text>
-        <Animated.Image
-          source={require('../assets/arrow-right.png')} // Ensure this path is correct
-          style={[styles.arrowIcon, { opacity: fadeAnim }]}
-        />
-      </TouchableOpacity>
-      <Text style={styles.footerText}>
-        By continuing you confirm that you agree to our{' '}
-        <Text style={styles.link} onPress={() => {}}>
-          Terms of Service
+        <Text style={styles.footerText}>
+          By continuing you confirm that you agree to our{' '}
+          <Text style={styles.link} onPress={() => { }}>
+            Terms of Service
+          </Text>
+          ,{' '}
+          <Text style={styles.link} onPress={() => { }}>
+            Bus/Combi Policy
+          </Text>{' '}
+          and good behavior in the bus/combi.
         </Text>
-        ,{' '}
-        <Text style={styles.link} onPress={() => {}}>
-          Bus/Combi Policy
-        </Text>{' '}
-        and good behavior in the bus/combi.
-      </Text>
-    </View>
+      </View>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    resizeMode: 'cover', // or 'stretch'
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center', // centers the content vertically
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.8)', //Semi-transparent white background
     padding: 20,
   },
   headerContainer: {
