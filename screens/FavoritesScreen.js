@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView, Dimensions, ActivityIndicator, Alert, ImageBackground } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import MapView from 'react-native-maps';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -125,76 +125,82 @@ const FavoritesScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {loading ? (
-        <ActivityIndicator size="large" color="#018abe" style={{ marginTop: 40 }} />
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContainer}
-        >
-          {favoriteRoutes.length === 0 ? (
-            <Text style={{ textAlign: 'center', marginTop: 40, color: '#888' }}>
-              No favorites yet.
-            </Text>
-          ) : favoriteRoutes.map((item, idx) => {
-            const isExpanded = expandedId === item.id;
-            return (
-              <Animated.View
-                style={[
-                  styles.card,
-                  { height: animations[idx], overflow: 'hidden' },
-                  !isExpanded && styles.cardCollapsed,
-                  idx === 0 && styles.firstCard,
-                  idx === favoriteRoutes.length - 1 && styles.lastCard,
-                ]}
-                key={item.id}
-              >
-                <View style={styles.touchArea}>
-                  <View style={styles.headerRow}>
-                    <Ionicons name="bus-outline" size={36} color="#333" />
-                    <Text style={styles.nameText}>{item.name}</Text>
-                    <TouchableOpacity onPress={() => handleDeleteFavorite(item.id)} style={{marginRight: 10}}>
-                      <Ionicons name="trash-outline" size={22} color="#e74c3c" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handlePress(idx, item.id)}>
-                      <MaterialIcons name={isExpanded ? "expand-less" : "expand-more"} size={28} color="#888" />
-                    </TouchableOpacity>
-                  </View>
-                  {isExpanded && (
-                    <View style={styles.expandedContent}>
-                      <View style={styles.mapContainer}>
-                        <MapView
-                          style={styles.map}
-                          initialRegion={{
-                            latitude: item.coordinate.latitude,
-                            longitude: item.coordinate.longitude,
-                            latitudeDelta: 0.0922,
-                            longitudeDelta: 0.0421,
-                          }}
-                        />
-                        <TouchableOpacity 
-                          style={styles.routeButton}
-                          onPress={() => navigation.navigate('MapViewScreen', { coordinate: item.coordinate })}
-                        >
-                          <Text style={styles.routeButtonText}>Show Route</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.extraRow}>
-                        <Text style={styles.extraLabel}>
-                          {item.origin} → {item.destination}
-                        </Text>
-                        <Ionicons name="share-social-outline" size={20} color="#888" />
-                      </View>
+    <ImageBackground
+      source={require('../assets/background.jpg')}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+        {loading ? (
+          <ActivityIndicator size="large" color="#018abe" style={{ marginTop: 40 }} />
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContainer}
+          >
+            {favoriteRoutes.length === 0 ? (
+              <Text style={{ textAlign: 'center', marginTop: 40, color: '#fff' }}>
+                No favorites yet.
+              </Text>
+            ) : favoriteRoutes.map((item, idx) => {
+              const isExpanded = expandedId === item.id;
+              return (
+                <Animated.View
+                  style={[
+                    styles.card,
+                    { height: animations[idx], overflow: 'hidden' },
+                    !isExpanded && styles.cardCollapsed,
+                    idx === 0 && styles.firstCard,
+                    idx === favoriteRoutes.length - 1 && styles.lastCard,
+                  ]}
+                  key={item.id}
+                >
+                  <View style={styles.touchArea}>
+                    <View style={styles.headerRow}>
+                      <Ionicons name="bus-outline" size={36} color="#333" />
+                      <Text style={styles.nameText}>{item.name}</Text>
+                      <TouchableOpacity onPress={() => handleDeleteFavorite(item.id)} style={{marginRight: 10}}>
+                        <Ionicons name="trash-outline" size={22} color="#e74c3c" />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handlePress(idx, item.id)}>
+                        <MaterialIcons name={isExpanded ? "expand-less" : "expand-more"} size={28} color="#888" />
+                      </TouchableOpacity>
                     </View>
-                  )}
-                </View>
-              </Animated.View>
-            );
-          })}
-        </ScrollView>
-      )}
-    </View>
+                    {isExpanded && (
+                      <View style={styles.expandedContent}>
+                        <View style={styles.mapContainer}>
+                          <MapView
+                            style={styles.map}
+                            initialRegion={{
+                              latitude: item.coordinate.latitude,
+                              longitude: item.coordinate.longitude,
+                              latitudeDelta: 0.0922,
+                              longitudeDelta: 0.0421,
+                            }}
+                          />
+                          <TouchableOpacity 
+                            style={styles.routeButton}
+                            onPress={() => navigation.navigate('MapViewScreen', { coordinate: item.coordinate })}
+                          >
+                            <Text style={styles.routeButtonText}>Show Route</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <View style={styles.extraRow}>
+                          <Text style={styles.extraLabel}>
+                            {item.origin} → {item.destination}
+                          </Text>
+                          <Ionicons name="share-social-outline" size={20} color="#888" />
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                </Animated.View>
+              );
+            })}
+          </ScrollView>
+        )}
+      </View>
+    </ImageBackground>
   );
 };
 
