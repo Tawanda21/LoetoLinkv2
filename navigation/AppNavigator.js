@@ -15,7 +15,6 @@ import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import MapViewScreen from '../screens/MapViewScreen';
 import BusStopScreen from '../screens/BusStopScreen';
-import TransportInfoScreen from '../screens/TransportInfoScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
@@ -26,7 +25,6 @@ const NAV_ICONS = [
   { name: 'home', screen: 'Home', component: HomeScreen },
   { name: 'map', screen: 'MapViewScreen', component: MapViewScreen },
   { name: 'bus', screen: 'Bus Stops', component: BusStopScreen },
-  { name: 'information-circle', screen: 'Transport', component: TransportInfoScreen },
   { name: 'heart', screen: 'Favorites', component: FavoritesScreen },
   { name: 'person', screen: 'Profile', component: ProfileScreen },
 ];

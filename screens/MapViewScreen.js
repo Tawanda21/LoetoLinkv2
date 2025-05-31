@@ -1,13 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Dimensions, Text, TouchableOpacity, Button, Platform } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Dimensions,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  Animated,
+  PanResponder,
+} from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import haversine from 'haversine-distance';
 import StopListComponent from '../components/StopListComponent';
-import Modal from 'react-native-modal'; // Import react-native-modal
-import { Ionicons } from '@expo/vector-icons'; // Add this for hamburger icon
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const GOMAPS_API_KEY = 'AlzaSy0csWCFtrxT-TmMw4adcHN41jNcy0mdvdf'; // Use your actual key
+
+const BOTTOM_SHEET_HEIGHT = Dimensions.get('window').height * 0.55;
+const BOTTOM_SHEET_PEEK = 48; // Height when hidden except for arrow
 
 // Helper to get ETA for each stop
 const fetchRouteWithETA = async (waypoints) => {
@@ -57,22 +69,91 @@ const MapViewScreen = ({ route }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [closestPointIndex, setClosestPointIndex] = useState(null);
   const [detailedWaypoints, setDetailedWaypoints] = useState([]);
-  const [initialRegion, setInitialRegion] = useState({ // Set Gaborone as the default
-    latitude: -24.6282, // Gaborone latitude
-    longitude: 25.9231, // Gaborone longitude
+  const [initialRegion, setInitialRegion] = useState({
+    latitude: -24.6282,
+    longitude: 25.9231,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
-  const [isModalVisible, setModalVisible] = useState(false); // State for modal visibility
-  const [isMenuVisible, setMenuVisible] = useState(false); // Add menu state
-  const mapRef = useRef(null); // Ref for the MapView
 
-  const [mapType, setMapType] = useState('standard'); // 'standard' or 'satellite'
+  const mapRef = useRef(null);
+
+  const [mapType, setMapType] = useState('standard');
   const [trafficEnabled, setTrafficEnabled] = useState(false);
-  const [streetViewEnabled, setStreetViewEnabled] = useState(false);
 
-  const [filteredRouteWaypoints, setFilteredRouteWaypoints] = useState([]); // Add filteredRouteWaypoints state
+  const [filteredRouteWaypoints, setFilteredRouteWaypoints] = useState([]);
   const [waypointsWithETA, setWaypointsWithETA] = useState([]);
+
+  // For previous routes
+  const [previousRoutes, setPreviousRoutes] = useState([]);
+  const hasRoute = !!route_name;
+
+  // Bottom sheet animation
+  const [sheetVisible, setSheetVisible] = useState(true);
+  const animatedValue = useRef(new Animated.Value(0)).current; // 0 = visible, 1 = hidden
+
+  const showSheet = () => {
+    setSheetVisible(true);
+    Animated.timing(animatedValue, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const hideSheet = () => {
+    setSheetVisible(false);
+    Animated.timing(animatedValue, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  // PanResponder for swipe up/down
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 10;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 50) {
+          hideSheet();
+        } else if (gestureState.dy < -50) {
+          showSheet();
+        }
+      },
+    })
+  ).current;
+
+  const translateY = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, BOTTOM_SHEET_HEIGHT - BOTTOM_SHEET_PEEK],
+  });
+
+  // Save new route to previous routes
+  useEffect(() => {
+    if (route_name && waypointsWithETA.length > 0) {
+      AsyncStorage.getItem('previousRoutes').then(data => {
+        let routes = data ? JSON.parse(data) : [];
+        // Avoid duplicates
+        if (!routes.find(r => r.route_name === route_name)) {
+          routes.unshift({ route_name, waypoints: waypointsWithETA });
+          routes = routes.slice(0, 5); // Keep only last 5
+          AsyncStorage.setItem('previousRoutes', JSON.stringify(routes));
+        }
+      });
+    }
+  }, [route_name, waypointsWithETA]);
+
+  // Load previous routes if no route
+  useEffect(() => {
+    if (!hasRoute) {
+      AsyncStorage.getItem('previousRoutes').then(data => {
+        setPreviousRoutes(data ? JSON.parse(data) : []);
+      });
+    }
+  }, [hasRoute]);
 
   useEffect(() => {
     (async () => {
@@ -104,7 +185,6 @@ const MapViewScreen = ({ route }) => {
   }, [userLocation, detailedWaypoints]);
 
   useEffect(() => {
-    // Set initial region based on origin or routeWaypoints
     if (origin) {
       setInitialRegion({
         latitude: origin.latitude,
@@ -148,7 +228,6 @@ const MapViewScreen = ({ route }) => {
 
   useEffect(() => {
     if (filteredRouteWaypoints && filteredRouteWaypoints.length > 1) {
-      // Ensure all lat/lng are numbers
       const numericWaypoints = filteredRouteWaypoints.map(wp => ({
         ...wp,
         latitude: typeof wp.latitude === 'string' ? parseFloat(wp.latitude) : wp.latitude,
@@ -173,7 +252,7 @@ const MapViewScreen = ({ route }) => {
         interpolated.push({ latitude, longitude });
       }
     }
-    interpolated.push(waypoints[waypoints.length - 1]); // Add the last waypoint
+    interpolated.push(waypoints[waypoints.length - 1]);
     return interpolated;
   };
 
@@ -260,14 +339,6 @@ const MapViewScreen = ({ route }) => {
     setTrafficEnabled(!trafficEnabled);
   };
 
-  const toggleStreetView = () => {
-    setStreetViewEnabled(!streetViewEnabled);
-  };
-
-  const toggleModal = () => {
-    setModalVisible(!isModalVisible);
-  };
-
   // Center map on user location
   const handleMyLocation = () => {
     if (mapRef.current && userLocation) {
@@ -280,6 +351,13 @@ const MapViewScreen = ({ route }) => {
         200
       );
     }
+  };
+
+  // Select a previous route
+  const handleSelectPreviousRoute = (routeObj) => {
+    setFilteredRouteWaypoints(routeObj.waypoints);
+    // Optionally update route_name if you want to display it
+    // setRouteName(routeObj.route_name);
   };
 
   return (
@@ -314,12 +392,11 @@ const MapViewScreen = ({ route }) => {
         {filteredRouteWaypoints && filteredRouteWaypoints.map((stop, index) => (
           <Marker
             key={index}
-            coordinate={{ 
-              latitude: parseFloat(stop.latitude), 
-              longitude: parseFloat(stop.longitude) 
+            coordinate={{
+              latitude: parseFloat(stop.latitude),
+              longitude: parseFloat(stop.longitude)
             }}
             title={stop.name}
-            // Add different pin color for terminals
             pinColor={stop.stop_order === 0 || stop.stop_order === 999 ? 'green' : 'red'}
           />
         ))}
@@ -337,59 +414,91 @@ const MapViewScreen = ({ route }) => {
         </View>
       </View>
 
-      {/* Hamburger Menu Button */}
-      <TouchableOpacity
-        style={styles.hamburgerButton}
-        onPress={() => setMenuVisible(true)}
+      {/* Animated Bottom Sheet */}
+      <Animated.View
+        style={[
+          styles.bottomSheet,
+          {
+            transform: [{ translateY }],
+            height: BOTTOM_SHEET_HEIGHT,
+          },
+        ]}
+        {...panResponder.panHandlers}
       >
-        <Ionicons name="menu" size={32} color="white" />
-      </TouchableOpacity>
+        {/* Up Arrow Button (show only when hidden) */}
+        {!sheetVisible && (
+          <TouchableOpacity
+            style={styles.upArrowButton}
+            onPress={showSheet}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-up" size={32} color="#018abe" />
+          </TouchableOpacity>
+        )}
 
-       <Modal 
-        isVisible={isMenuVisible} 
-        onBackdropPress={() => setMenuVisible(false)}
-        animationIn="zoomIn"
-        animationInTiming={500}
-      >
-        <View style={styles.menuModal}>
-          <TouchableOpacity style={styles.menuItem} onPress={toggleMapType}>
-            <Text style={styles.menuItemText}>{mapType === 'standard' ? 'Satellite' : 'Standard'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={toggleTraffic}>
-            <Text style={styles.menuItemText}>{trafficEnabled ? 'Hide Traffic' : 'Show Traffic'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={toggleModal}>
-            <Text style={styles.menuItemText}>Show Stop List</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={handleMyLocation}>
-            <Text style={styles.menuItemText}>My Location</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.menuItem, {marginTop: 10}]} onPress={() => setMenuVisible(false)}>
-            <Text style={[styles.menuItemText, {color: '#018abe'}]}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+        {/* Drag Handle (show only when visible) */}
+        {sheetVisible && <View style={styles.dragHandle} />}
 
-      {/* Stop List Modal */}
-      <Modal 
-        isVisible={isModalVisible} 
-        onBackdropPress={toggleModal}
-        animationIn="zoomIn"
-        animationInTiming={500}
-      >
-        <View style={[styles.modalContent,{ maxHeight: Dimensions.get('window').height * 0.85, width: Dimensions.get('window').width * 0.95, alignSelf: 'center'}]}>
-          <Text style={styles.bottomSheetTitle}>Route Stops</Text>
-          {route_name && (
-            <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#018abe', marginBottom: 10 }}>
-              Riding: {route_name}
+        {/* Route Name or Previous Routes */}
+        {sheetVisible && (
+          <>
+            <Text style={styles.routeTitle}>
+              {hasRoute ? route_name : 'Previous Routes'}
             </Text>
-          )}
-          <StopListComponent routeWaypoints={waypointsWithETA} />
-          <TouchableOpacity onPress={toggleModal} style={{marginTop: 20, alignSelf: 'center'}}>
-            <Text style={{color: '#018abe', fontWeight: 'bold', fontSize: 16}}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+
+            {/* Action Buttons */}
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={styles.actionButton} onPress={toggleMapType}>
+                <Ionicons name={mapType === 'standard' ? 'map' : 'map-outline'} size={24} color="#018abe" />
+                <Text style={styles.actionText}>{mapType === 'standard' ? 'Satellite' : 'Standard'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton} onPress={toggleTraffic}>
+                <Ionicons name="car" size={24} color="#018abe" />
+                <Text style={styles.actionText}>{trafficEnabled ? 'Hide Traffic' : 'Show Traffic'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton} onPress={handleMyLocation}>
+                <Ionicons name="locate" size={24} color="#018abe" />
+                <Text style={styles.actionText}>My Location</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Stop List or Previous Routes */}
+            <View style={{ flex: 1, maxHeight: '60%' }}>
+              {hasRoute ? (
+                <FlatList
+                  data={[{ id: 'single', data: waypointsWithETA }]}
+                  renderItem={({ item }) => (
+                    <StopListComponent
+                      routeWaypoints={item.data}
+                      contentContainerStyle={{ paddingBottom: 20 }}
+                    />
+                  )}
+                  keyExtractor={item => item.id}
+                />
+              ) : (
+                <FlatList
+                  data={previousRoutes.length > 0 ? previousRoutes : [{ id: 'empty' }]}
+                  renderItem={({ item }) =>
+                    item.id === 'empty' ? (
+                      <Text style={{ color: '#888', textAlign: 'center', marginTop: 20 }}>No previous routes.</Text>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.prevRouteCard}
+                        onPress={() => handleSelectPreviousRoute(item)}
+                      >
+                        <Text style={styles.prevRouteName}>{item.route_name}</Text>
+                        <StopListComponent routeWaypoints={item.waypoints} />
+                      </TouchableOpacity>
+                    )
+                  }
+                  keyExtractor={(item, index) => item.id || index.toString()}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                />
+              )}
+            </View>
+          </>
+        )}
+      </Animated.View>
     </View>
   );
 };
@@ -430,76 +539,74 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  mapTypeContainer: {
-    flexDirection: 'column',
+  bottomSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,1.0)',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingTop: 10,
+    paddingHorizontal: 18,
+    paddingBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 24,
+    minHeight: 48,
+    maxHeight: Dimensions.get('window').height * 0.55,
+    overflow: 'hidden',
   },
-  mapTypeButton: {
-    backgroundColor: 'rgba(1, 138, 190, 0.8)',
-    padding: 10,
-    borderRadius: 15,
+  upArrowButton: {
+    position: 'absolute',
+    left: 18,
+    top: 8,
+    zIndex: 10,
+    backgroundColor: 'rgba(255,255,255,1.0)',
+    borderRadius: 20,
+    padding: 2,
+  },
+  dragHandle: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#e0e0e0',
+    alignSelf: 'center',
     marginBottom: 10,
   },
-  mapTypeButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  showListButton: {
-    position: 'absolute',
-    top: 80,
-    left: 20,
-    backgroundColor: 'rgba(1, 138, 190, 0.8)',
-    padding: 15,
-    borderRadius: 15,
-    alignItems: 'center',
-  },
-  showListButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: 22,
-    borderRadius: 24, // More rounded corners
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    // Shadow for iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    // Shadow for Android
-    elevation: 12,
-  },
-  bottomSheetTitle: {
+  routeTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 10,
+    textAlign: 'center',
   },
-  hamburgerButton: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    backgroundColor: 'rgba(1, 138, 190, 0.9)',
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 10,
+  },
+  actionButton: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  actionText: {
+    fontSize: 13,
+    color: '#018abe',
+    marginTop: 2,
+  },
+  prevRouteCard: {
+    backgroundColor: '#f6f7fa',
+    borderRadius: 12,
     padding: 10,
-    borderRadius: 25,
-    zIndex: 10,
+    marginBottom: 10,
   },
-  menuModal: {
-    backgroundColor: 'white',
-    padding: 22,
-    borderRadius: 10,
-    alignItems: 'stretch',
-  },
-  menuItem: {
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  menuItemText: {
-    fontSize: 18,
-    color: '#222',
+  prevRouteName: {
     fontWeight: 'bold',
+    fontSize: 16,
+    color: '#018abe',
+    marginBottom: 4,
   },
 });
 
