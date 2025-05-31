@@ -7,6 +7,7 @@ import haversine from 'haversine-distance';
 import UserHeader from '../components/UserHeader';
 import { decodePolyline } from '../utils';
 import { debounce } from 'lodash';
+import { Ionicons } from '@expo/vector-icons';
 
 const HomeScreen = () => {
   const [from, setFrom] = useState('');
@@ -18,6 +19,9 @@ const HomeScreen = () => {
   const [fromStopData, setFromStopData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [allStopsAndTerminals, setAllStopsAndTerminals] = useState([]);
+  const [currentRouteId, setCurrentRouteId] = useState(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
 
   // Fetch all stops and terminals ONCE for smooth filtering
   useEffect(() => {
@@ -178,6 +182,21 @@ const HomeScreen = () => {
         Alert.alert('Error', 'Could not find a route for the selected direction.');
         setIsLoading(false);
         return;
+      }
+
+      // Set the current route ID
+      setCurrentRouteId(routeData.id);
+
+      // Check if this route is already a favorite for the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: favData } = await supabase
+          .from('user_favorite_routes')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('route_id', routeData.id)
+          .single();
+        setIsFavorite(!!favData);
       }
 
       // 2. Now fetch stops for this route_id
@@ -384,6 +403,66 @@ const HomeScreen = () => {
     }
   };
 
+  // Replace your current favorite handler with this improved version
+  const handleFavoritePress = async () => {
+    setFavoriteLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to save favorites.');
+        setFavoriteLoading(false);
+        return;
+      }
+      
+      if (isFavorite) {
+        // Remove favorite
+        const { error } = await supabase
+          .from('user_favorite_routes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('route_id', currentRouteId);
+          
+        if (error) {
+          console.error('Delete favorite error:', error);
+          Alert.alert('Error', 'Could not remove from favorites. Please try again.');
+        } else {
+          setIsFavorite(false);
+          Alert.alert('Success', 'Route removed from favorites');
+        }
+      } else {
+        // Add favorite - check if it already exists first
+        const { data: existingFav } = await supabase
+          .from('user_favorite_routes')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('route_id', currentRouteId);
+          
+        if (existingFav && existingFav.length > 0) {
+          Alert.alert('Info', 'This route is already in your favorites');
+        } else {
+          // Insert new favorite
+          const { error } = await supabase
+            .from('user_favorite_routes')
+            .insert([{ user_id: user.id, route_id: currentRouteId }]);
+            
+          if (error) {
+            console.error('Add favorite error:', error);
+            Alert.alert('Error', 'Could not add to favorites. Please try again.');
+          } else {
+            setIsFavorite(true);
+            Alert.alert('Success', 'Route added to favorites');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Favorite action error:', err);
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
   return (
     <ImageBackground
       source={require('../assets/background.jpg')}
@@ -463,6 +542,32 @@ const HomeScreen = () => {
         <TouchableOpacity style={styles.button} onPress={handleUseMyLocation}>
           <Text style={styles.buttonText}>Use My Location</Text>
         </TouchableOpacity>
+        {currentRouteId && (
+          <TouchableOpacity
+            style={[
+              styles.button,
+              { backgroundColor: isFavorite ? '#e74c3c' : '#27ae60' }
+            ]}
+            onPress={handleFavoritePress}
+            disabled={favoriteLoading}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={styles.buttonText}>
+                {favoriteLoading
+                  ? 'Saving...'
+                  : isFavorite
+                  ? 'Remove from Favorites'
+                  : 'Add to Favorites'}
+              </Text>
+              <Ionicons
+                name={isFavorite ? 'heart' : 'heart-outline'}
+                size={20}
+                color="#fff"
+                style={{ marginLeft: 8 }}
+              />
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
     </ImageBackground>
   );
