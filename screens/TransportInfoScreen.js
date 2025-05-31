@@ -7,15 +7,18 @@ const TransportInfoScreen = ({ route }) => {
   // These should be passed via navigation
   const {
     routeInfo,           // { name, color }
-    routeWaypoints,      // [{ name, time, eta, delay, platform, latitude, longitude }]
+    filteredRouteWaypoints, // Use the filtered stops, like in MapViewScreen
     userLocation,        // { latitude, longitude }
     totalDuration,       // e.g. "30 min"
     eta,                 // e.g. "08:15"
     delays,              // e.g. { summary: "5 min delay at Mainstation" }
   } = route?.params || {};
 
+  // Fallback to routeWaypoints if filteredRouteWaypoints is not provided
+  const stops = filteredRouteWaypoints || route.params?.routeWaypoints || [];
+
   // Add distance to each stop if userLocation is available
-  const waypointsWithDistance = routeWaypoints?.map(stop => ({
+  const waypointsWithDistance = stops.map(stop => ({
     ...stop,
     distance: userLocation
       ? getDistance(
@@ -29,18 +32,14 @@ const TransportInfoScreen = ({ route }) => {
     <View style={styles.fullScreen}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
         <View style={styles.card}>
+          {/* Show only the combi/route name */}
           <Text style={[styles.title, { color: routeInfo?.color || '#364c84' }]}>
-            {routeInfo?.name || 'Your Trip'}
+            {routeInfo?.name || 'Combi Route'}
           </Text>
-          <Text style={styles.subtitle}>
-            ETA: {eta || '--:--'} | Total: {totalDuration || '--'} 
-          </Text>
-          {delays?.summary && (
-            <Text style={styles.delayText}>Delays: {delays.summary}</Text>
-          )}
+          {/* Show all stops below */}
           <StopListComponent
             routeWaypoints={waypointsWithDistance}
-            showDetails // You can use this prop to show extra info in StopListComponent
+            showDetails
           />
         </View>
       </ScrollView>
@@ -76,17 +75,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 2,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#888',
-    marginBottom: 8,
-  },
-  delayText: {
-    fontSize: 15,
-    color: '#d32f2f',
-    marginBottom: 12,
-    fontWeight: 'bold',
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, TextInput, FlatList, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -6,6 +6,7 @@ import * as Location from 'expo-location';
 import haversine from 'haversine-distance';
 import UserHeader from '../components/UserHeader';
 import { decodePolyline } from '../utils';
+import { debounce } from 'lodash';
 
 const HomeScreen = () => {
   const [from, setFrom] = useState('');
@@ -14,55 +15,26 @@ const HomeScreen = () => {
   const [filteredFromStops, setFilteredFromStops] = useState([]);
   const [filteredToStops, setFilteredToStops] = useState([]);
   const navigation = useNavigation();
-  const [fromStopData, setFromStopData] = useState(null); // Store the selected "From" stop data
-  const [isLoading, setIsLoading] = useState(false); // Add loading state
+  const [fromStopData, setFromStopData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [allStopsAndTerminals, setAllStopsAndTerminals] = useState([]);
 
+  // Fetch all stops and terminals ONCE for smooth filtering
   useEffect(() => {
-    const fetchStops = async () => {
-      const { data, error } = await supabase.from('stops').select('*');
-      if (error) {
-        Alert.alert('Error', 'Failed to fetch stops.');
-        return;
-      }
-      setStops(data);
-    };
-    fetchStops();
-  }, []);
+    const fetchAll = async () => {
+      try {
+        const { data: stopsData, error: stopsError } = await supabase.from('stops').select('*');
+        const { data: routesData, error: routesError } = await supabase.from('combi_routes').select('*');
+        if (stopsError || routesError) {
+          Alert.alert('Error', 'Failed to fetch stops or routes.');
+          return;
+        }
+        setStops(stopsData);
 
-  const handleInputChange = async (text, type) => {
-    if (!text.trim()) {
-      type === 'from' ? setFilteredFromStops([]) : setFilteredToStops([]);
-      return;
-    }
-
-    try {
-      // First, search in stops table
-      const { data: stopData, error: stopError } = await supabase
-        .from('stops')
-        .select('*')
-        .ilike('name', `%${text}%`);
-
-      if (stopError) {
-        console.error('Error fetching stops:', stopError);
-        return;
-      }
-
-      // Next, search in combi_routes table for terminals
-      const { data: routeData, error: routeError } = await supabase
-        .from('combi_routes')
-        .select('*');
-
-      if (routeError) {
-        console.error('Error fetching routes:', routeError);
-        return;
-      }
-
-      // Create terminal entries from routes
-      const terminalEntries = [];
-      routeData.forEach(route => {
-        // Add origin terminals
-        if (route.origin.toLowerCase().includes(text.toLowerCase())) {
-          terminalEntries.push({
+        // Create terminal entries
+        const terminals = [];
+        routesData.forEach(route => {
+          terminals.push({
             id: `origin-${route.id}`,
             name: route.origin,
             latitude: route.origin_latitude,
@@ -71,11 +43,7 @@ const HomeScreen = () => {
             stop_order: 0,
             isTerminal: true
           });
-        }
-        
-        // Add destination terminals
-        if (route.destination.toLowerCase().includes(text.toLowerCase())) {
-          terminalEntries.push({
+          terminals.push({
             id: `destination-${route.id}`,
             name: route.destination,
             latitude: route.destination_latitude,
@@ -84,35 +52,46 @@ const HomeScreen = () => {
             stop_order: 999,
             isTerminal: true
           });
-        }
-      });
+        });
+        setAllStopsAndTerminals([...stopsData, ...terminals]);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to fetch stops and terminals.');
+      }
+    };
+    fetchAll();
+  }, []);
 
-      // Combine and filter results
-      let combinedResults;
-      
-      if (type === 'to' && fromStopData) {
-        // If "from" is selected, only show stops on the same route
-        combinedResults = [
-          ...stopData.filter(stop => stop.route_id === fromStopData.route_id),
-          ...terminalEntries.filter(terminal => terminal.route_id === fromStopData.route_id)
-        ];
-      } else {
-        // Otherwise show all matching results
-        combinedResults = [...stopData, ...terminalEntries];
+  // Debounced filter function for smooth UX
+  const debouncedFilter = useRef(
+    debounce((text, type, fromStopDataRef, allStopsAndTerminalsRef) => {
+      if (!text.trim()) {
+        type === 'from' ? setFilteredFromStops([]) : setFilteredToStops([]);
+        return;
       }
-      
-      // Update state with filtered results
+      let filtered = allStopsAndTerminalsRef.filter(stop =>
+        stop.name.toLowerCase().includes(text.toLowerCase())
+      );
+      // If filtering "to", restrict to same route as "from"
+      if (type === 'to' && fromStopDataRef) {
+        filtered = filtered.filter(stop => stop.route_id === fromStopDataRef.route_id);
+      }
       if (type === 'from') {
-        setFrom(text);
-        setFilteredFromStops(combinedResults);
+        setFilteredFromStops(filtered);
       } else {
-        setTo(text);
-        setFilteredToStops(combinedResults);
+        setFilteredToStops(filtered);
       }
-    } catch (error) {
-      console.error('Error in handleInputChange:', error);
-      Alert.alert('Error', 'Failed to search for stops and terminals.');
-    }
+    }, 200)
+  ).current;
+
+  const handleInputChange = (text, type) => {
+    if (type === 'from') setFrom(text);
+    else setTo(text);
+    debouncedFilter(
+      text,
+      type,
+      fromStopData,
+      allStopsAndTerminals
+    );
   };
 
   const handleSelectStop = (stop, type) => {
@@ -120,6 +99,8 @@ const HomeScreen = () => {
       setFrom(stop.name);
       setFromStopData(stop);
       setFilteredFromStops([]);
+      setTo('');
+      setFilteredToStops([]);
     } else {
       setTo(stop.name);
       setFilteredToStops([]);
@@ -130,6 +111,8 @@ const HomeScreen = () => {
     setFrom('');
     setFilteredFromStops([]);
     setFromStopData(null);
+    setTo('');
+    setFilteredToStops([]);
   };
   const clearTo = () => {
     setTo('');
@@ -140,21 +123,14 @@ const HomeScreen = () => {
     const tempFrom = from;
     const tempTo = to;
 
-    // Fetch the stop data for the "To" stop
-    const { data: toStopData, error: toStopError } = await supabase
-      .from('stops')
-      .select('*')
-      .eq('name', tempTo)
-      .single();
-
-    if (toStopError) {
-      Alert.alert('Error', 'Failed to fetch stop data after swap.');
-      return;
-    }
+    // Find the stop data for the "To" stop in allStopsAndTerminals
+    const toStopData = allStopsAndTerminals.find(stop => stop.name === tempTo);
 
     setFrom(tempTo);
     setTo(tempFrom);
-    setFromStopData(toStopData || null); // Update fromStopData with the "To" stop data
+    setFromStopData(toStopData || null);
+    setFilteredFromStops([]);
+    setFilteredToStops([]);
   };
 
   const handleSearch = async () => {
@@ -163,27 +139,23 @@ const HomeScreen = () => {
       return;
     }
 
-    setIsLoading(true); // Start loading
+    setIsLoading(true);
 
     try {
-      // Get the stop details
-      const { data: fromStopData, error: fromStopError } = await supabase
-        .from('stops')
-        .select('*')
-        .eq('name', from)
-        .single();
+      // Get the stop details from allStopsAndTerminals
+      const fromStopDataObj = allStopsAndTerminals.find(stop => stop.name === from);
+      const toStopDataObj = allStopsAndTerminals.find(stop => stop.name === to);
 
-      const { data: toStopData, error: toStopError } = await supabase
-        .from('stops')
-        .select('*')
-        .eq('name', to)
-        .single();
+      if (!fromStopDataObj || !toStopDataObj) {
+        Alert.alert('Error', 'Invalid stop selection.');
+        return;
+      }
 
       // Get the route details
       const { data: routeData, error: routeError } = await supabase
         .from('combi_routes')
         .select('*')
-        .eq('id', fromStopData?.route_id)
+        .eq('id', fromStopDataObj?.route_id)
         .single();
 
       if (routeError) {
@@ -200,8 +172,8 @@ const HomeScreen = () => {
         latitude: parseFloat(routeData.origin_latitude),
         longitude: parseFloat(routeData.origin_longitude)
       } : {
-        latitude: parseFloat(fromStopData.latitude),
-        longitude: parseFloat(fromStopData.longitude)
+        latitude: parseFloat(fromStopDataObj.latitude),
+        longitude: parseFloat(fromStopDataObj.longitude)
       };
 
       // Set the destination coordinates
@@ -209,8 +181,8 @@ const HomeScreen = () => {
         latitude: parseFloat(routeData.destination_latitude),
         longitude: parseFloat(routeData.destination_longitude)
       } : {
-        latitude: parseFloat(toStopData.latitude),
-        longitude: parseFloat(toStopData.longitude)
+        latitude: parseFloat(toStopDataObj.latitude),
+        longitude: parseFloat(toStopDataObj.longitude)
       };
 
       // Fetch waypoints including terminals if needed
@@ -223,7 +195,7 @@ const HomeScreen = () => {
           name,
           route_id
         `)
-        .eq('route_id', fromStopData.route_id)
+        .eq('route_id', fromStopDataObj.route_id)
         .order('stop_order', { ascending: true });
 
       if (routeWaypointsError) {
@@ -238,21 +210,19 @@ const HomeScreen = () => {
             .map(wp => `${wp.latitude},${wp.longitude}`)
             .join('|');
 
-          // Modified directions URL with additional parameters
           const directionsUrl = `https://maps.gomaps.pro/maps/api/directions/json?` +
             `origin=${waypoints[0].latitude},${waypoints[0].longitude}&` +
             `destination=${waypoints[waypoints.length-1].latitude},${waypoints[waypoints.length-1].longitude}&` +
             `waypoints=optimize:false|${waypointsStr}&` +
             `mode=driving&` +
             `alternatives=true&` +
-            `avoid=highways|ferries&` + // Avoid highways to prefer local roads
+            `avoid=highways|ferries&` +
             `key=AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn`;
 
           const response = await fetch(directionsUrl);
           const directionsData = await response.json();
 
           if (directionsData.status === 'OK') {
-            // Try to select the shortest route if alternatives are available
             const routes = directionsData.routes;
             let shortestRoute = routes[0];
             let shortestDistance = Number.MAX_VALUE;
@@ -278,7 +248,7 @@ const HomeScreen = () => {
 
       // Create complete waypoint list including terminals
       let completeWaypoints = [];
-      
+
       // Add origin terminal if starting from there
       if (isFromTerminal) {
         completeWaypoints.push({
@@ -292,9 +262,9 @@ const HomeScreen = () => {
       // Add intermediate stops
       completeWaypoints = [
         ...completeWaypoints,
-        ...routeWaypoints.filter(stop => 
-          (isFromTerminal || stop.stop_order >= fromStopData.stop_order) &&
-          (!isToTerminal || stop.stop_order <= toStopData.stop_order)
+        ...routeWaypoints.filter(stop =>
+          (isFromTerminal || stop.stop_order >= fromStopDataObj.stop_order) &&
+          (!isToTerminal || stop.stop_order <= toStopDataObj.stop_order)
         )
       ];
 
@@ -311,7 +281,6 @@ const HomeScreen = () => {
       // Get the continuous route
       const allWaypoints = await getDetailedRoute(completeWaypoints);
 
-      // Navigate with the complete route
       navigation.navigate('MainTabNavigator', {
         screen: 'MapViewScreen',
         params: {
@@ -319,23 +288,19 @@ const HomeScreen = () => {
           destination,
           waypoints: allWaypoints,
           routeWaypoints: completeWaypoints,
-          route_name: routeData?.route_name || routeData?.name, // <-- Add this line
+          route_name: routeData?.route_name || routeData?.name,
         },
       });
     } finally {
-      setIsLoading(false); // Stop loading
+      setIsLoading(false);
     }
   };
 
   const handleUseMyLocation = async () => {
-    // Check permission status
     const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
-    console.log('Location permission status:', status);
-
     if (status !== 'granted') {
       if (canAskAgain) {
         const { status: requestStatus } = await Location.requestForegroundPermissionsAsync();
-        console.log('Requested location permission, new status:', requestStatus);
         if (requestStatus !== 'granted') {
           Alert.alert('Permission Denied', 'Location permission is required to use this feature.');
           return;
@@ -349,7 +314,6 @@ const HomeScreen = () => {
     try {
       const location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
-      console.log('My current location:', latitude, longitude);
 
       let nearestStop = null;
       let minDistance = Infinity;
@@ -371,7 +335,8 @@ const HomeScreen = () => {
         setFrom(nearestStop.name);
         setFromStopData(nearestStop);
         setFilteredFromStops([]);
-        // Show relation in alert
+        setTo('');
+        setFilteredToStops([]);
         Alert.alert(
           'Nearest Stop',
           `Your location:\nLat: ${latitude}\nLng: ${longitude}\n\nNearest stop: ${nearestStop.name}\nLat: ${nearestStop.latitude}\nLng: ${nearestStop.longitude}\n\nDistance: ${(minDistance / 1000).toFixed(2)} km`
@@ -380,7 +345,6 @@ const HomeScreen = () => {
         Alert.alert('No Stops Found', 'Could not find any stops nearby.');
       }
     } catch (error) {
-      console.log('Error getting location:', error);
       Alert.alert('Error', 'Could not get your current location.');
     }
   };
