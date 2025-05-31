@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, TextInput, FlatList, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator, ImageBackground } from 'react-native';
+import { View, TextInput, FlatList, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator, ImageBackground, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import * as Location from 'expo-location';
@@ -8,6 +8,66 @@ import UserHeader from '../components/UserHeader';
 import { decodePolyline } from '../utils';
 import { debounce } from 'lodash';
 import { Ionicons } from '@expo/vector-icons';
+import { useFavorite } from '../contexts/FavoriteContext';
+
+// --- Custom Popup Component (same as FavoritesScreen) ---
+const AnimatedPopup = ({ visible, message, onHide }) => {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(40)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Auto-hide after 1.8s
+      const timer = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateY, {
+            toValue: 40,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          onHide && onHide();
+        });
+      }, 1800);
+
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View
+      style={[
+        popupStyles.popup,
+        {
+          opacity,
+          transform: [{ translateY }],
+        },
+      ]}
+      pointerEvents="none"
+    >
+      <Text style={popupStyles.popupText}>{message}</Text>
+    </Animated.View>
+  );
+};
 
 const HomeScreen = () => {
   const [from, setFrom] = useState('');
@@ -22,6 +82,10 @@ const HomeScreen = () => {
   const [currentRouteId, setCurrentRouteId] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+
+  const [popup, setPopup] = useState({ visible: false, message: '' });
+
+  const { favoriteChanged, notifyFavoriteChanged } = useFavorite();
 
   // Fetch all stops and terminals ONCE for smooth filtering
   useEffect(() => {
@@ -64,6 +128,60 @@ const HomeScreen = () => {
     };
     fetchAll();
   }, []);
+
+  // Keep currentRouteId in sync with from/to
+  useEffect(() => {
+    const updateRouteId = async () => {
+      if (!from || !to) {
+        setCurrentRouteId(null);
+        setIsFavorite(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('combi_routes')
+        .select('id')
+        .eq('origin', from)
+        .eq('destination', to)
+        .single();
+      if (data && data.id) {
+        setCurrentRouteId(data.id);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: favData } = await supabase
+            .from('user_favorite_routes')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('route_id', data.id)
+            .single();
+          setIsFavorite(!!favData);
+        }
+      } else {
+        setCurrentRouteId(null);
+        setIsFavorite(false);
+      }
+    };
+    updateRouteId();
+    // eslint-disable-next-line
+  }, [from, to]);
+
+  // Re-check favorite status when favoriteChanged or currentRouteId changes
+  useEffect(() => {
+    const checkIfFavorite = async (routeId) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && routeId) {
+        const { data: favData } = await supabase
+          .from('user_favorite_routes')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('route_id', routeId)
+          .single();
+        setIsFavorite(!!favData);
+      }
+    };
+    if (currentRouteId) {
+      checkIfFavorite(currentRouteId);
+    }
+  }, [favoriteChanged, currentRouteId]);
 
   // Debounced filter function for smooth UX
   const debouncedFilter = useRef(
@@ -220,7 +338,7 @@ const HomeScreen = () => {
           name: routeData.origin,
           stop_order: 0,
           isTerminal: true,
-          route_id: routeData.id, // <-- add this
+          route_id: routeData.id,
         },
         ...routeWaypoints,
         {
@@ -229,7 +347,7 @@ const HomeScreen = () => {
           name: routeData.destination,
           stop_order: 999,
           isTerminal: true,
-          route_id: routeData.id, // <-- add this
+          route_id: routeData.id,
         }
       ];
 
@@ -318,7 +436,6 @@ const HomeScreen = () => {
 
             return decodePolyline(shortestRoute.overview_polyline.points);
           } else {
-            // Show a user-friendly error and return null
             Alert.alert('No Route Found', 'No route could be found for the selected stops. Please try different stops.');
             return null;
           }
@@ -332,7 +449,7 @@ const HomeScreen = () => {
 
       if (!allWaypoints || allWaypoints.length === 0) {
         setIsLoading(false);
-        return; // Don't navigate if no route found
+        return;
       }
 
       navigation.navigate('MainTabNavigator', {
@@ -403,18 +520,17 @@ const HomeScreen = () => {
     }
   };
 
-  // Replace your current favorite handler with this improved version
   const handleFavoritePress = async () => {
     setFavoriteLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
-        Alert.alert('Error', 'You must be logged in to save favorites.');
+        setPopup({ visible: true, message: 'You must be logged in to save favorites.' });
         setFavoriteLoading(false);
         return;
       }
-      
+
       if (isFavorite) {
         // Remove favorite
         const { error } = await supabase
@@ -422,13 +538,14 @@ const HomeScreen = () => {
           .delete()
           .eq('user_id', user.id)
           .eq('route_id', currentRouteId);
-          
+
         if (error) {
           console.error('Delete favorite error:', error);
-          Alert.alert('Error', 'Could not remove from favorites. Please try again.');
+          setPopup({ visible: true, message: 'Could not remove from favorites.' });
         } else {
           setIsFavorite(false);
-          Alert.alert('Success', 'Route removed from favorites');
+          notifyFavoriteChanged();
+          setPopup({ visible: true, message: 'Route removed from favorites!' });
         }
       } else {
         // Add favorite - check if it already exists first
@@ -437,27 +554,28 @@ const HomeScreen = () => {
           .select('id')
           .eq('user_id', user.id)
           .eq('route_id', currentRouteId);
-          
+
         if (existingFav && existingFav.length > 0) {
-          Alert.alert('Info', 'This route is already in your favorites');
+          setPopup({ visible: true, message: 'This route is already in your favorites.' });
         } else {
           // Insert new favorite
           const { error } = await supabase
             .from('user_favorite_routes')
             .insert([{ user_id: user.id, route_id: currentRouteId }]);
-            
+
           if (error) {
             console.error('Add favorite error:', error);
-            Alert.alert('Error', 'Could not add to favorites. Please try again.');
+            setPopup({ visible: true, message: 'Could not add to favorites.' });
           } else {
             setIsFavorite(true);
-            Alert.alert('Success', 'Route added to favorites');
+            notifyFavoriteChanged();
+            setPopup({ visible: true, message: 'Route added to favorites!' });
           }
         }
       }
     } catch (err) {
       console.error('Favorite action error:', err);
-      Alert.alert('Error', 'An unexpected error occurred');
+      setPopup({ visible: true, message: 'An unexpected error occurred.' });
     } finally {
       setFavoriteLoading(false);
     }
@@ -470,6 +588,11 @@ const HomeScreen = () => {
       resizeMode="cover"
     >
       <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+        <AnimatedPopup
+          visible={popup.visible}
+          message={popup.message}
+          onHide={() => setPopup({ ...popup, visible: false })}
+        />
         <UserHeader onAvatarPress={() => navigation.navigate('Profile')} />
         <View style={styles.inputContainer}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -572,6 +695,31 @@ const HomeScreen = () => {
     </ImageBackground>
   );
 };
+
+const popupStyles = StyleSheet.create({
+  popup: {
+    position: 'absolute',
+    top: 60,
+    alignSelf: 'center',
+    backgroundColor: '#018abe',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  popupText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
