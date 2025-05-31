@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, TextInput, FlatList, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, TextInput, FlatList, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator, ImageBackground } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import * as Location from 'expo-location';
@@ -385,83 +385,86 @@ const HomeScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <UserHeader onAvatarPress={() => navigation.navigate('Profile')} />
-      <View style={styles.inputContainer}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="From..."
-            value={from}
-            onChangeText={(text) => handleInputChange(text, 'from')}
-          />
-          {from.length > 0 && (
-            <TouchableOpacity onPress={clearFrom} style={{ marginLeft: -35, zIndex: 1 }}>
-              <Text style={{ fontSize: 18, color: '#888' }}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        {filteredFromStops.length > 0 && (
-          <FlatList
-            style={styles.dropdown}
-            data={filteredFromStops}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.dropdownItem}
-                onPress={() => handleSelectStop(item, 'from')}
-              >
-                <Text>{item.name}</Text>
+    <ImageBackground
+      source={require('../assets/background.jpg')}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+        <UserHeader onAvatarPress={() => navigation.navigate('Profile')} />
+        <View style={styles.inputContainer}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="From..."
+              value={from}
+              onChangeText={(text) => handleInputChange(text, 'from')}
+            />
+            {from.length > 0 && (
+              <TouchableOpacity onPress={clearFrom} style={{ marginLeft: -35, zIndex: 1 }}>
+                <Text style={{ fontSize: 18, color: '#888' }}>✕</Text>
               </TouchableOpacity>
             )}
-          />
-        )}
-      </View>
-      <TouchableOpacity style={styles.swapButton} onPress={handleSwapStops}>
-        <Text style={styles.swapButtonText}>&#8645;</Text>
-      </TouchableOpacity>
-      <View style={styles.inputContainer}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="To..."
-            value={to}
-            onChangeText={(text) => handleInputChange(text, 'to')}
-            editable={from !== ''}
-          />
-          {to.length > 0 && (
-            <TouchableOpacity onPress={clearTo} style={{ marginLeft: -35, zIndex: 1 }}>
-              <Text style={{ fontSize: 18, color: '#888' }}>✕</Text>
-            </TouchableOpacity>
+          </View>
+          {filteredFromStops.length > 0 && (
+            <FlatList
+              style={styles.dropdown}
+              data={filteredFromStops}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => handleSelectStop(item, 'from')}
+                >
+                  <Text>{item.name}</Text>
+                </TouchableOpacity>
+              )}
+            />
           )}
         </View>
-        {filteredToStops.length > 0 && (
-          <FlatList
-            style={styles.dropdown}
-            data={filteredToStops}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.dropdownItem}
-                onPress={() => handleSelectStop(item, 'to')}
-              >
-                <Text>{item.name}</Text>
+        <View style={styles.inputContainer}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="To..."
+              value={to}
+              onChangeText={(text) => handleInputChange(text, 'to')}
+              editable={from !== ''}
+            />
+            {to.length > 0 && (
+              <TouchableOpacity onPress={clearTo} style={{ marginLeft: -35, zIndex: 1 }}>
+                <Text style={{ fontSize: 18, color: '#888' }}>✕</Text>
               </TouchableOpacity>
             )}
-          />
-        )}
+          </View>
+          {filteredToStops.length > 0 && (
+            <FlatList
+              style={styles.dropdown}
+              data={filteredToStops}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => handleSelectStop(item, 'to')}
+                >
+                  <Text>{item.name}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
+        <TouchableOpacity style={styles.button} onPress={handleSearch} disabled={isLoading}>
+          {isLoading ? (
+            <ActivityIndicator size="small" color="white" />
+          ) : (
+            <Text style={styles.buttonText}>Search</Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.button} onPress={handleUseMyLocation}>
+          <Text style={styles.buttonText}>Use My Location</Text>
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity style={styles.button} onPress={handleSearch} disabled={isLoading}>
-        {isLoading ? (
-          <ActivityIndicator size="small" color="white" />
-        ) : (
-          <Text style={styles.buttonText}>Search</Text>
-        )}
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={handleUseMyLocation}>
-        <Text style={styles.buttonText}>Use My Location</Text>
-      </TouchableOpacity>
-    </View>
+    </ImageBackground>
   );
 };
 

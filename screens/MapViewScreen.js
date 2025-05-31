@@ -1,11 +1,56 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Dimensions, Text, TouchableOpacity, Button } from 'react-native';
+import { View, StyleSheet, Dimensions, Text, TouchableOpacity, Button, Platform } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import haversine from 'haversine-distance';
 import StopListComponent from '../components/StopListComponent';
 import Modal from 'react-native-modal'; // Import react-native-modal
 import { Ionicons } from '@expo/vector-icons'; // Add this for hamburger icon
+
+const GOMAPS_API_KEY = 'AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn'; // Use your actual key
+
+// Helper to get ETA for each stop
+const fetchRouteWithETA = async (waypoints) => {
+  if (!waypoints || waypoints.length < 2) return [];
+
+  const origin = `${waypoints[0].latitude},${waypoints[0].longitude}`;
+  const destination = `${waypoints[waypoints.length - 1].latitude},${waypoints[waypoints.length - 1].longitude}`;
+  const waypointsStr = waypoints.slice(1, -1).map(wp => `${wp.latitude},${wp.longitude}`).join('|');
+
+  const url = `https://maps.gomaps.pro/maps/api/directions/json?origin=${origin}&destination=${destination}` +
+    (waypointsStr ? `&waypoints=${waypointsStr}` : '') +
+    `&mode=driving&traffic_model=best_guess&departure_time=now&key=${GOMAPS_API_KEY}`;
+
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.status !== 'OK') return [];
+
+    // Each leg corresponds to a segment between stops
+    const legs = data.routes[0].legs;
+    let cumulativeSeconds = 0;
+    const now = Date.now();
+
+    // Build ETA for each stop (including origin)
+    const etas = waypoints.map((stop, idx) => {
+      if (idx === 0) {
+        return { ...stop, eta: 'Now' };
+      }
+      // Prefer duration_in_traffic if available, else fallback to duration
+      const leg = legs[idx - 1];
+      const durationSeconds = leg?.duration_in_traffic?.value ?? leg?.duration?.value ?? 0;
+      cumulativeSeconds += durationSeconds;
+      const etaDate = new Date(now + cumulativeSeconds * 1000);
+      const etaStr = etaDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return { ...stop, eta: etaStr };
+    });
+
+    return etas;
+  } catch (e) {
+    console.log('Error fetching ETA:', e);
+    return waypoints.map(stop => ({ ...stop, eta: null }));
+  }
+};
 
 const MapViewScreen = ({ route }) => {
   const { origin, destination, waypoints, routeWaypoints, route_name } = route.params || {};
@@ -27,6 +72,7 @@ const MapViewScreen = ({ route }) => {
   const [streetViewEnabled, setStreetViewEnabled] = useState(false);
 
   const [filteredRouteWaypoints, setFilteredRouteWaypoints] = useState([]); // Add filteredRouteWaypoints state
+  const [waypointsWithETA, setWaypointsWithETA] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -99,6 +145,20 @@ const MapViewScreen = ({ route }) => {
       }
     }
   }, [routeWaypoints, origin, destination]);
+
+  useEffect(() => {
+    if (filteredRouteWaypoints && filteredRouteWaypoints.length > 1) {
+      // Ensure all lat/lng are numbers
+      const numericWaypoints = filteredRouteWaypoints.map(wp => ({
+        ...wp,
+        latitude: typeof wp.latitude === 'string' ? parseFloat(wp.latitude) : wp.latitude,
+        longitude: typeof wp.longitude === 'string' ? parseFloat(wp.longitude) : wp.longitude,
+      }));
+      fetchRouteWithETA(numericWaypoints).then(setWaypointsWithETA);
+    } else {
+      setWaypointsWithETA(filteredRouteWaypoints || []);
+    }
+  }, [filteredRouteWaypoints]);
 
   const interpolateWaypoints = (waypoints, numPoints) => {
     const interpolated = [];
@@ -324,7 +384,7 @@ const MapViewScreen = ({ route }) => {
               Riding: {route_name}
             </Text>
           )}
-          <StopListComponent routeWaypoints={filteredRouteWaypoints} />
+          <StopListComponent routeWaypoints={waypointsWithETA} />
           <TouchableOpacity onPress={toggleModal} style={{marginTop: 20, alignSelf: 'center'}}>
             <Text style={{color: '#018abe', fontWeight: 'bold', fontSize: 16}}>Close</Text>
           </TouchableOpacity>

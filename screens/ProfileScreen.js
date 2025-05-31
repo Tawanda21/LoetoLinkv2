@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, Animated, TouchableWithoutFeedback, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, Animated, TouchableWithoutFeedback, TextInput, ImageBackground } from 'react-native';
 import UserHeader from '../components/UserHeader';
 import { supabase } from '../lib/supabase';
 import CustomPopup from '../components/CustomPopup';
@@ -69,176 +69,188 @@ const ProfileScreen = ({ navigation }) => {
 
   if (loading) {
     return (
-      <View style={styles.screen}>
-        <ActivityIndicator size="large" color="#001F3F" />
-      </View>
+      <ImageBackground
+        source={require('../assets/background.jpg')}
+        style={{ flex: 1 }}
+        resizeMode="cover"
+      >
+        <View style={styles.screen}>
+          <ActivityIndicator size="large" color="#001F3F" />
+        </View>
+      </ImageBackground>
     );
   }
 
   return (
-    <TouchableWithoutFeedback onPress={() => {
-      setShowEditMenu(false);
-      setActivePopup(null);
-      setPopup({ ...popup, visible: false });
-    }}>
-      <View style={styles.screen}>
-        <View style={[styles.card, { marginTop: -50 }]}>
-          <View style={styles.avatarContainer}>
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-          </View>
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <View>
-              <CustomPopup
-                visible={popup.visible}
-                title={popup.title}
-                message={popup.message}
-                onClose={() => setPopup({ ...popup, visible: false })}
-                onConfirm={popup.onConfirm}
-                confirmText={popup.title === 'Logout' ? 'Logout' : 'OK'}
-              />
-              {/* Username Popup */}
-              {activePopup === 'username' && (
+    <ImageBackground
+      source={require('../assets/background.jpg')}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <TouchableWithoutFeedback onPress={() => {
+        setShowEditMenu(false);
+        setActivePopup(null);
+        setPopup({ ...popup, visible: false });
+      }}>
+        <View style={styles.screen}>
+          <View style={[styles.card, { marginTop: -50 }]}>
+            <View style={styles.avatarContainer}>
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+            </View>
+            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <View>
                 <CustomPopup
-                  visible={true}
-                  title="Change Username"
-                  onClose={() => setActivePopup(null)}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter new username"
-                    value={username}
-                    onChangeText={setUsername}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={() => {
-                      // TODO: handle username change
-                      setActivePopup(null);
-                    }}
+                  visible={popup.visible}
+                  title={popup.title}
+                  message={popup.message}
+                  onClose={() => setPopup({ ...popup, visible: false })}
+                  onConfirm={popup.onConfirm}
+                  confirmText={popup.title === 'Logout' ? 'Logout' : 'OK'}
+                />
+                {/* Username Popup */}
+                {activePopup === 'username' && (
+                  <CustomPopup
+                    visible={true}
+                    title="Change Username"
+                    onClose={() => setActivePopup(null)}
                   >
-                    <Text style={styles.saveButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </CustomPopup>
-              )}
-              {/* Email Popup */}
-              {activePopup === 'email' && (
-                <CustomPopup
-                  visible={true}
-                  title="Change Email"
-                  onClose={() => setActivePopup(null)}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter new email"
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                  />
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={() => {
-                      // TODO: handle email change
-                      setActivePopup(null);
-                    }}
-                  >
-                    <Text style={styles.saveButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </CustomPopup>
-              )}
-              {/* Password Popup */}
-              {activePopup === 'password' && (
-                <CustomPopup
-                  visible={true}
-                  title="Change Password"
-                  onClose={() => setActivePopup(null)}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Current password"
-                    value={currentPassword}
-                    onChangeText={setCurrentPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                  <View style={{ width: '100%', position: 'relative' }}>
                     <TextInput
                       style={styles.input}
-                      placeholder="New password"
-                      value={newPassword}
-                      onChangeText={setNewPassword}
+                      placeholder="Enter new username"
+                      value={username}
+                      onChangeText={setUsername}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      style={styles.saveButton}
+                      onPress={() => {
+                        // TODO: handle username change
+                        setActivePopup(null);
+                      }}
+                    >
+                      <Text style={styles.saveButtonText}>Save</Text>
+                    </TouchableOpacity>
+                  </CustomPopup>
+                )}
+                {/* Email Popup */}
+                {activePopup === 'email' && (
+                  <CustomPopup
+                    visible={true}
+                    title="Change Email"
+                    onClose={() => setActivePopup(null)}
+                  >
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter new email"
+                      value={email}
+                      onChangeText={setEmail}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                    />
+                    <TouchableOpacity
+                      style={styles.saveButton}
+                      onPress={() => {
+                        // TODO: handle email change
+                        setActivePopup(null);
+                      }}
+                    >
+                      <Text style={styles.saveButtonText}>Save</Text>
+                    </TouchableOpacity>
+                  </CustomPopup>
+                )}
+                {/* Password Popup */}
+                {activePopup === 'password' && (
+                  <CustomPopup
+                    visible={true}
+                    title="Change Password"
+                    onClose={() => setActivePopup(null)}
+                  >
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Current password"
+                      value={currentPassword}
+                      onChangeText={setCurrentPassword}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                    />
+                    <View style={{ width: '100%', position: 'relative' }}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="New password"
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity
+                        style={styles.eyeIcon}
+                        onPress={() => setShowPassword(!showPassword)}
+                      >
+                        <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="#888" />
+                      </TouchableOpacity>
+                    </View>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Confirm new password"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
                       secureTextEntry={!showPassword}
                       autoCapitalize="none"
                     />
                     <TouchableOpacity
-                      style={styles.eyeIcon}
-                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.saveButton}
+                      onPress={() => {
+                        // TODO: handle password change
+                        setActivePopup(null);
+                      }}
                     >
-                      <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="#888" />
+                      <Text style={styles.saveButtonText}>Save</Text>
                     </TouchableOpacity>
-                  </View>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Confirm new password"
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={() => {
-                      // TODO: handle password change
-                      setActivePopup(null);
-                    }}
-                  >
-                    <Text style={styles.saveButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </CustomPopup>
-              )}
-            </View>
-          </TouchableWithoutFeedback>
-          <Text style={styles.name}>
-            {user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || 'User'}
-          </Text>
-          <TouchableOpacity 
-            style={styles.editButton} 
-            onPress={(e) => {
-              e.stopPropagation();
-              setShowEditMenu(!showEditMenu);
-            }}
-          >
-            <Feather name="edit-2" size={24} color="#001F3F" />
-          </TouchableOpacity>
-          
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <Animated.View style={[styles.editMenu, { maxHeight: menuHeight, opacity: menuOpacity }]}>
-              <TouchableOpacity style={styles.menuItem} onPress={() => setActivePopup('username')}>
-                <Text style={styles.menuText}>Change Username</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => setActivePopup('email')}>
-                <Text style={styles.menuText}>Change Email</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => setActivePopup('password')}>
-                <Text style={styles.menuText}>Change Password</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </TouchableWithoutFeedback>
-          
-          <TouchableOpacity style={[styles.buyButton]} onPress={handleLogout}>
-            <Text style={styles.buyButtonText}>Logout</Text>
-          </TouchableOpacity>
+                  </CustomPopup>
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+            <Text style={styles.name}>
+              {user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || 'User'}
+            </Text>
+            <TouchableOpacity 
+              style={styles.editButton} 
+              onPress={(e) => {
+                e.stopPropagation();
+                setShowEditMenu(!showEditMenu);
+              }}
+            >
+              <Feather name="edit-2" size={24} color="#001F3F" />
+            </TouchableOpacity>
+            
+            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <Animated.View style={[styles.editMenu, { maxHeight: menuHeight, opacity: menuOpacity }]}>
+                <TouchableOpacity style={styles.menuItem} onPress={() => setActivePopup('username')}>
+                  <Text style={styles.menuText}>Change Username</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={() => setActivePopup('email')}>
+                  <Text style={styles.menuText}>Change Email</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={() => setActivePopup('password')}>
+                  <Text style={styles.menuText}>Change Password</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </TouchableWithoutFeedback>
+            
+            <TouchableOpacity style={[styles.buyButton]} onPress={handleLogout}>
+              <Text style={styles.buyButtonText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </TouchableWithoutFeedback>
+      </TouchableWithoutFeedback>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f6f7fa',
+    backgroundColor: '#transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
