@@ -279,7 +279,7 @@ const HomeScreen = () => {
             `mode=driving&` +
             `alternatives=true&` +
             `avoid=highways|ferries&` +
-            `key=AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn`;
+            `key=AlzaSy0csWCFtrxT-TmMw4adcHN41jNcy0mdvdf`;
 
           const response = await fetch(directionsUrl);
           const directionsData = await response.json();

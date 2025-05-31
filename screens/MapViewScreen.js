@@ -7,7 +7,7 @@ import StopListComponent from '../components/StopListComponent';
 import Modal from 'react-native-modal'; // Import react-native-modal
 import { Ionicons } from '@expo/vector-icons'; // Add this for hamburger icon
 
-const GOMAPS_API_KEY = 'AlzaSykD0-TOgCvku5D5nyYC67DmWk2aaon-COn'; // Use your actual key
+const GOMAPS_API_KEY = 'AlzaSy0csWCFtrxT-TmMw4adcHN41jNcy0mdvdf'; // Use your actual key
 
 // Helper to get ETA for each stop
 const fetchRouteWithETA = async (waypoints) => {
