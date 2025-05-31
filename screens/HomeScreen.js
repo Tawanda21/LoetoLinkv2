@@ -142,70 +142,132 @@ const HomeScreen = () => {
     setIsLoading(true);
 
     try {
-      // Get the stop details from allStopsAndTerminals
-      const fromStopDataObj = allStopsAndTerminals.find(stop => stop.name === from);
-      const toStopDataObj = allStopsAndTerminals.find(stop => stop.name === to);
+      // 1. Find the correct route_id for the selected direction
+      let routeData, routeError;
+      // If both from and to are terminals, use combi_routes to find the matching direction
+      if (
+        allStopsAndTerminals.find(stop => stop.name === from && stop.isTerminal) &&
+        allStopsAndTerminals.find(stop => stop.name === to && stop.isTerminal)
+      ) {
+        const { data, error } = await supabase
+          .from('combi_routes')
+          .select('*')
+          .eq('origin', from)
+          .eq('destination', to)
+          .single();
+        routeData = data;
+        routeError = error;
+      } else {
+        // Otherwise, fallback to using the route_id of the from stop
+        const fromStopDataObj = allStopsAndTerminals.find(stop => stop.name === from);
+        if (!fromStopDataObj) {
+          Alert.alert('Error', 'Invalid "From" stop.');
+          setIsLoading(false);
+          return;
+        }
+        const { data, error } = await supabase
+          .from('combi_routes')
+          .select('*')
+          .eq('id', fromStopDataObj.route_id)
+          .single();
+        routeData = data;
+        routeError = error;
+      }
 
-      if (!fromStopDataObj || !toStopDataObj) {
-        Alert.alert('Error', 'Invalid stop selection.');
+      if (routeError || !routeData) {
+        Alert.alert('Error', 'Could not find a route for the selected direction.');
+        setIsLoading(false);
         return;
       }
 
-      // Get the route details
-      const { data: routeData, error: routeError } = await supabase
-        .from('combi_routes')
-        .select('*')
-        .eq('id', fromStopDataObj?.route_id)
-        .single();
-
-      if (routeError) {
-        Alert.alert('Error', 'Failed to fetch route details.');
-        return;
-      }
-
-      // Determine if using stops or terminals
-      const isFromTerminal = from === routeData.origin;
-      const isToTerminal = to === routeData.destination;
-
-      // Set the origin coordinates
-      const origin = isFromTerminal ? {
-        latitude: parseFloat(routeData.origin_latitude),
-        longitude: parseFloat(routeData.origin_longitude)
-      } : {
-        latitude: parseFloat(fromStopDataObj.latitude),
-        longitude: parseFloat(fromStopDataObj.longitude)
-      };
-
-      // Set the destination coordinates
-      const destination = isToTerminal ? {
-        latitude: parseFloat(routeData.destination_latitude),
-        longitude: parseFloat(routeData.destination_longitude)
-      } : {
-        latitude: parseFloat(toStopDataObj.latitude),
-        longitude: parseFloat(toStopDataObj.longitude)
-      };
-
-      // Fetch waypoints including terminals if needed
+      // 2. Now fetch stops for this route_id
       const { data: routeWaypoints, error: routeWaypointsError } = await supabase
         .from('stops')
-        .select(`
-          latitude, 
-          longitude, 
-          stop_order, 
-          name,
-          route_id
-        `)
-        .eq('route_id', fromStopDataObj.route_id)
+        .select('latitude, longitude, stop_order, name, route_id')
+        .eq('route_id', routeData.id)
         .order('stop_order', { ascending: true });
 
       if (routeWaypointsError) {
         Alert.alert('Error', 'Failed to fetch route waypoints.');
+        setIsLoading(false);
         return;
       }
+
+      // 3. Build the full stops+terminals array for this direction
+      const allStopsWithTerminals = [
+        {
+          latitude: parseFloat(routeData.origin_latitude),
+          longitude: parseFloat(routeData.origin_longitude),
+          name: routeData.origin,
+          stop_order: 0,
+          isTerminal: true,
+          route_id: routeData.id, // <-- add this
+        },
+        ...routeWaypoints,
+        {
+          latitude: parseFloat(routeData.destination_latitude),
+          longitude: parseFloat(routeData.destination_longitude),
+          name: routeData.destination,
+          stop_order: 999,
+          isTerminal: true,
+          route_id: routeData.id, // <-- add this
+        }
+      ];
+
+      // 4. Find indexes for from/to in this direction (match both name and route_id for uniqueness)
+      const fromIdx = allStopsWithTerminals.findIndex(
+        stop => stop.name === from && stop.route_id === routeData.id
+      );
+      const toIdx = allStopsWithTerminals.findIndex(
+        stop => stop.name === to && stop.route_id === routeData.id
+      );
+
+      if (fromIdx === -1 || toIdx === -1) {
+        Alert.alert('Error', 'Could not find both stops in the route.');
+        setIsLoading(false);
+        return;
+      }
+
+      // 5. Slice the waypoints in the correct direction
+      let completeWaypoints;
+      if (fromIdx <= toIdx) {
+        completeWaypoints = allStopsWithTerminals.slice(fromIdx, toIdx + 1);
+      } else {
+        completeWaypoints = allStopsWithTerminals.slice(toIdx, fromIdx + 1).reverse();
+      }
+
+      if (!completeWaypoints || completeWaypoints.length < 2) {
+        Alert.alert('Error', 'Insufficient waypoints to create a route.');
+        setIsLoading(false);
+        return;
+      }
+
+      // 6. Prepare origin/destination objects for navigation
+      const origin = {
+        latitude: parseFloat(completeWaypoints[0].latitude),
+        longitude: parseFloat(completeWaypoints[0].longitude)
+      };
+      const destination = {
+        latitude: parseFloat(completeWaypoints[completeWaypoints.length - 1].latitude),
+        longitude: parseFloat(completeWaypoints[completeWaypoints.length - 1].longitude)
+      };
 
       // Replace the existing waypoints generation code
       const getDetailedRoute = async (waypoints) => {
         try {
+          if (!waypoints || waypoints.length < 2) {
+            Alert.alert("Error", "Insufficient waypoints to create a route.");
+            return null;
+          }
+
+          // Validate waypoints
+          for (const wp of waypoints) {
+            if (!wp || typeof wp.latitude !== 'number' || typeof wp.longitude !== 'number') {
+              Alert.alert("Error", "Invalid waypoint data.");
+              return null;
+            }
+          }
+
           const waypointsStr = waypoints
             .map(wp => `${wp.latitude},${wp.longitude}`)
             .join('|');
@@ -237,49 +299,22 @@ const HomeScreen = () => {
 
             return decodePolyline(shortestRoute.overview_polyline.points);
           } else {
-            console.error('Failed to fetch directions:', directionsData.status);
-            return [];
+            // Show a user-friendly error and return null
+            Alert.alert('No Route Found', 'No route could be found for the selected stops. Please try different stops.');
+            return null;
           }
         } catch (error) {
-          console.error('Error fetching route:', error);
-          return [];
+          Alert.alert('Error', 'An error occurred while fetching the route.');
+          return null;
         }
       };
 
-      // Create complete waypoint list including terminals
-      let completeWaypoints = [];
-
-      // Add origin terminal if starting from there
-      if (isFromTerminal) {
-        completeWaypoints.push({
-          latitude: parseFloat(routeData.origin_latitude),
-          longitude: parseFloat(routeData.origin_longitude),
-          name: routeData.origin,
-          stop_order: 0
-        });
-      }
-
-      // Add intermediate stops
-      completeWaypoints = [
-        ...completeWaypoints,
-        ...routeWaypoints.filter(stop =>
-          (isFromTerminal || stop.stop_order >= fromStopDataObj.stop_order) &&
-          (!isToTerminal || stop.stop_order <= toStopDataObj.stop_order)
-        )
-      ];
-
-      // Add destination terminal if ending there
-      if (isToTerminal) {
-        completeWaypoints.push({
-          latitude: parseFloat(routeData.destination_latitude),
-          longitude: parseFloat(routeData.destination_longitude),
-          name: routeData.destination,
-          stop_order: routeWaypoints.length + 1
-        });
-      }
-
-      // Get the continuous route
       const allWaypoints = await getDetailedRoute(completeWaypoints);
+
+      if (!allWaypoints || allWaypoints.length === 0) {
+        setIsLoading(false);
+        return; // Don't navigate if no route found
+      }
 
       navigation.navigate('MainTabNavigator', {
         screen: 'MapViewScreen',
