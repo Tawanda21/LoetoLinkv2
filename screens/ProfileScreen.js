@@ -12,8 +12,7 @@ const ProfileScreen = ({ navigation }) => {
   const [showEditMenu, setShowEditMenu] = useState(false);
   const menuAnimation = new Animated.Value(0);
 
-  // Popup states for custom popups
-  const [activePopup, setActivePopup] = useState(null); // 'username' | 'email' | 'password' | null
+  const [activePopup, setActivePopup] = useState(null);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -23,8 +22,13 @@ const ProfileScreen = ({ navigation }) => {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data?.user);
+      setLoading(true);
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      setUser(currentUser);
+      if (currentUser) {
+        setUsername(currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || '');
+        setEmail(currentUser.email || '');
+      }
       setLoading(false);
     };
     fetchUser();
@@ -81,6 +85,78 @@ const ProfileScreen = ({ navigation }) => {
     );
   }
 
+  const handleUpdateUsername = async () => {
+    if (!username.trim()) {
+      Alert.alert('Error', 'Username cannot be empty.');
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase.auth.updateUser({
+      data: { full_name: username, name: username } // 'name' or 'full_name' or both, depending on your metadata structure
+    });
+    setLoading(false);
+    if (error) {
+      Alert.alert('Error updating username', error.message);
+    } else {
+      setUser(data.user); // Update local user state
+      Alert.alert('Success', 'Username updated successfully!');
+      setActivePopup(null);
+    }
+  };
+
+  const handleUpdateEmail = async () => {
+    if (!email.trim()) {
+      Alert.alert('Error', 'Email cannot be empty.');
+      return;
+    }
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Error', 'Please enter a valid email address.');
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase.auth.updateUser({ email: email });
+    setLoading(false);
+    if (error) {
+      Alert.alert('Error updating email', error.message);
+    } else {
+      setUser(data.user); // Update local user state
+      Alert.alert('Success', 'Email update initiated. Please check your new email address to confirm the change.');
+      setActivePopup(null);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      Alert.alert('Error', 'New password and confirmation cannot be empty.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'New passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Error', 'Password should be at least 6 characters long.');
+      return;
+    }
+    setLoading(true);
+    // Note: Supabase does not require currentPassword for password updates if the user is already authenticated.
+    // If you have 2FA or other specific policies, you might need it.
+    // For simplicity, this example directly updates to the new password.
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    setLoading(false);
+    if (error) {
+      Alert.alert('Error updating password', error.message);
+    } else {
+      Alert.alert('Success', 'Password updated successfully!');
+      setActivePopup(null);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+  };
+  
   return (
     <ImageBackground
       source={require('../assets/background.jpg')}
@@ -90,7 +166,7 @@ const ProfileScreen = ({ navigation }) => {
       <TouchableWithoutFeedback onPress={() => {
         setShowEditMenu(false);
         setActivePopup(null);
-        setPopup({ ...popup, visible: false });
+        // setPopup({ ...popup, visible: false }); // Keep this if you still use the generic popup
       }}>
         <View style={styles.screen}>
           <View style={[styles.card, { marginTop: -50 }]}>
@@ -99,14 +175,33 @@ const ProfileScreen = ({ navigation }) => {
             </View>
             <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
               <View>
-                <CustomPopup
-                  visible={popup.visible}
-                  title={popup.title}
-                  message={popup.message}
-                  onClose={() => setPopup({ ...popup, visible: false })}
-                  onConfirm={popup.onConfirm}
-                  confirmText={popup.title === 'Logout' ? 'Logout' : 'OK'}
-                />
+                {/* Logout Confirmation Popup */}
+                {popup.visible && (
+                  <CustomPopup
+                    visible={popup.visible}
+                    title={popup.title}
+                    onClose={() => setPopup({ ...popup, visible: false })}
+                  >
+                    <Text style={{ marginBottom: 20, fontSize: 16, textAlign: 'center' }}>{popup.message}</Text>
+                    <TouchableOpacity
+                      style={styles.saveButton} // You might want a different style for confirm, e.g., red
+                      onPress={() => {
+                        if (popup.onConfirm) {
+                          popup.onConfirm();
+                        }
+                      }}
+                    >
+                      <Text style={styles.saveButtonText}>Yes, Logout</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.saveButton, { backgroundColor: '#aaa', marginTop: 10 }]} // Example cancel button
+                      onPress={() => setPopup({ ...popup, visible: false })}
+                    >
+                      <Text style={styles.saveButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </CustomPopup>
+                )}
+
                 {/* Username Popup */}
                 {activePopup === 'username' && (
                   <CustomPopup
@@ -119,16 +214,14 @@ const ProfileScreen = ({ navigation }) => {
                       placeholder="Enter new username"
                       value={username}
                       onChangeText={setUsername}
-                      autoCapitalize="none"
+                      autoCapitalize="words" // Common for names
                     />
                     <TouchableOpacity
                       style={styles.saveButton}
-                      onPress={() => {
-                        // TODO: handle username change
-                        setActivePopup(null);
-                      }}
+                      onPress={handleUpdateUsername}
+                      disabled={loading}
                     >
-                      <Text style={styles.saveButtonText}>Save</Text>
+                      {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save</Text>}
                     </TouchableOpacity>
                   </CustomPopup>
                 )}
@@ -149,12 +242,10 @@ const ProfileScreen = ({ navigation }) => {
                     />
                     <TouchableOpacity
                       style={styles.saveButton}
-                      onPress={() => {
-                        // TODO: handle email change
-                        setActivePopup(null);
-                      }}
+                      onPress={handleUpdateEmail}
+                      disabled={loading}
                     >
-                      <Text style={styles.saveButtonText}>Save</Text>
+                      {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save</Text>}
                     </TouchableOpacity>
                   </CustomPopup>
                 )}
@@ -163,8 +254,17 @@ const ProfileScreen = ({ navigation }) => {
                   <CustomPopup
                     visible={true}
                     title="Change Password"
-                    onClose={() => setActivePopup(null)}
+                    onClose={() => {
+                      setActivePopup(null);
+                      // Clear password fields when closing without saving
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                      setShowPassword(false);
+                    }}
                   >
+                    {/* You might want to ask for currentPassword for added security, 
+                        but supabase.auth.updateUser doesn't strictly require it if session is valid.
                     <TextInput
                       style={styles.input}
                       placeholder="Current password"
@@ -172,7 +272,8 @@ const ProfileScreen = ({ navigation }) => {
                       onChangeText={setCurrentPassword}
                       secureTextEntry={!showPassword}
                       autoCapitalize="none"
-                    />
+                    /> 
+                    */}
                     <View style={{ width: '100%', position: 'relative' }}>
                       <TextInput
                         style={styles.input}
@@ -199,12 +300,10 @@ const ProfileScreen = ({ navigation }) => {
                     />
                     <TouchableOpacity
                       style={styles.saveButton}
-                      onPress={() => {
-                        // TODO: handle password change
-                        setActivePopup(null);
-                      }}
+                      onPress={handleUpdatePassword}
+                      disabled={loading}
                     >
-                      <Text style={styles.saveButtonText}>Save</Text>
+                      {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save</Text>}
                     </TouchableOpacity>
                   </CustomPopup>
                 )}
