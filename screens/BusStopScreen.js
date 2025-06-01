@@ -102,6 +102,11 @@ const BusStopScreen = () => {
   return (
     <ImageBackground source={backgroundImage} style={styles.background} resizeMode="cover">
       <View style={styles.overlay} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, marginLeft: 20, marginBottom: 10 }}>
+        <Text style={{ fontFamily: 'jgs', fontSize: 28, color: '#212842', fontWeight: 'bold' }}>
+          Bus Stops
+        </Text>
+      </View>
       <FlatList
         data={routes}
         keyExtractor={item => item.id.toString()}

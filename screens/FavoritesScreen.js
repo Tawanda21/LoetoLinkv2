@@ -197,6 +197,11 @@ const FavoritesScreen = () => {
       resizeMode="cover"
     >
       <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, marginLeft: 20, marginBottom: 10 }}>
+          <Text style={{ fontFamily: 'jgs', fontSize: 28, color: '#212842', fontWeight: 'bold' }}>
+            Favorites
+          </Text>
+        </View>
         <AnimatedPopup
           visible={popup.visible}
           message={popup.message}

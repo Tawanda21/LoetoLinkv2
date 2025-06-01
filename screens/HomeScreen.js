@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, TextInput, FlatList, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator, ImageBackground, Animated } from 'react-native';
+import { Image, View, TextInput, FlatList, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator, ImageBackground, Animated, PanResponder, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import * as Location from 'expo-location';
@@ -69,6 +69,9 @@ const AnimatedPopup = ({ visible, message, onHide }) => {
   );
 };
 
+const BOTTOM_SHEET_MIN_HEIGHT = 80;
+const BOTTOM_SHEET_MAX_HEIGHT = Dimensions.get('window').height * 0.55;
+
 const HomeScreen = () => {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -86,6 +89,58 @@ const HomeScreen = () => {
   const [popup, setPopup] = useState({ visible: false, message: '' });
 
   const { favoriteChanged, notifyFavoriteChanged } = useFavorite();
+
+  // --- Bottom Sheet State ---
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const sheetAnim = useRef(new Animated.Value(BOTTOM_SHEET_MIN_HEIGHT)).current;
+  const lastSheetHeight = useRef(BOTTOM_SHEET_MIN_HEIGHT);
+
+  // Animated height for the sheet
+  const animatedSheetHeight = Animated.add(sheetAnim, new Animated.Value(lastSheetHeight.current)).interpolate({
+    inputRange: [BOTTOM_SHEET_MIN_HEIGHT, BOTTOM_SHEET_MAX_HEIGHT],
+    outputRange: [BOTTOM_SHEET_MIN_HEIGHT, BOTTOM_SHEET_MAX_HEIGHT],
+    extrapolate: 'clamp',
+  });
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 10,
+      onPanResponderGrant: () => {
+        sheetAnim.setOffset(lastSheetHeight.current);
+        sheetAnim.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        let newHeight = lastSheetHeight.current - gestureState.dy;
+        newHeight = Math.max(BOTTOM_SHEET_MIN_HEIGHT, Math.min(BOTTOM_SHEET_MAX_HEIGHT, newHeight));
+        sheetAnim.setValue(newHeight - lastSheetHeight.current);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        sheetAnim.flattenOffset();
+        let newHeight = lastSheetHeight.current - gestureState.dy;
+        if (gestureState.dy < -50 || newHeight > (BOTTOM_SHEET_MIN_HEIGHT + BOTTOM_SHEET_MAX_HEIGHT) / 2) {
+          // Open
+          Animated.spring(sheetAnim, {
+            toValue: BOTTOM_SHEET_MAX_HEIGHT - lastSheetHeight.current,
+            useNativeDriver: false,
+          }).start(() => {
+            lastSheetHeight.current = BOTTOM_SHEET_MAX_HEIGHT;
+            sheetAnim.setValue(0);
+            setSheetVisible(true);
+          });
+        } else {
+          // Close
+          Animated.spring(sheetAnim, {
+            toValue: BOTTOM_SHEET_MIN_HEIGHT - lastSheetHeight.current,
+            useNativeDriver: false,
+          }).start(() => {
+            lastSheetHeight.current = BOTTOM_SHEET_MIN_HEIGHT;
+            sheetAnim.setValue(0);
+            setSheetVisible(false);
+          });
+        }
+      },
+    })
+  ).current;
 
   // Fetch all stops and terminals ONCE for smooth filtering
   useEffect(() => {
@@ -587,13 +642,26 @@ const HomeScreen = () => {
       style={{ flex: 1 }}
       resizeMode="cover"
     >
-      <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+      {/* --- Logo and App Name Row at the very top --- */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20, marginLeft: 20, marginBottom: 10 }}>
+        <Image
+          source={require('../assets/logo.jpg')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={styles.appName}>LoetoLink</Text>
+      </View>
+
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: 0 }]}>
         <AnimatedPopup
           visible={popup.visible}
           message={popup.message}
           onHide={() => setPopup({ ...popup, visible: false })}
         />
+
+        {/* Move all main controls up, just below the logo/app name */}
         <UserHeader onAvatarPress={() => navigation.navigate('Profile')} />
+
         <View style={styles.inputContainer}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TextInput
@@ -624,6 +692,7 @@ const HomeScreen = () => {
             />
           )}
         </View>
+
         <View style={styles.inputContainer}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TextInput
@@ -655,6 +724,7 @@ const HomeScreen = () => {
             />
           )}
         </View>
+
         <TouchableOpacity style={styles.button} onPress={handleSearch} disabled={isLoading}>
           {isLoading ? (
             <ActivityIndicator size="small" color="white" />
@@ -692,6 +762,58 @@ const HomeScreen = () => {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* --- Bottom Sheet --- */}
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: animatedSheetHeight,
+          backgroundColor: '#fff',
+          borderTopLeftRadius: 22,
+          borderTopRightRadius: 22,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -8 },
+          shadowOpacity: 0.15,
+          shadowRadius: 16,
+          elevation: 24,
+          minHeight: BOTTOM_SHEET_MIN_HEIGHT,
+          maxHeight: BOTTOM_SHEET_MAX_HEIGHT,
+          overflow: 'hidden',
+        }}
+        {...panResponder.panHandlers}
+      >
+        {/* Drag Handle */}
+        <View style={{ alignItems: 'center', paddingTop: 8 }}>
+          <View style={{
+            width: 40,
+            height: 5,
+            borderRadius: 3,
+            backgroundColor: '#e0e0e0',
+            marginBottom: 10,
+          }} />
+        </View>
+        {/* Header */}
+        <Text
+          style={{
+            fontFamily: 'OstrichSans-Medium',
+            fontSize: 22,
+            fontWeight: '500',
+            textAlign: 'left',
+            marginLeft: 22,
+            marginBottom: 10,
+            color: '#222',
+          }}
+        >
+          Places To Visit
+        </Text>
+        {/* Content */}
+        <View style={{ flex: 1, paddingHorizontal: 22 }}>
+          <Text style={{ color: '#888' }}></Text>
+        </View>
+      </Animated.View>
     </ImageBackground>
   );
 };
@@ -726,6 +848,25 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     backgroundColor: '#f9f9f9',
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    marginTop: 10,
+  },
+  logo: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    marginRight: 10,
+  },
+  appName: {
+    fontSize: 32,
+    fontFamily: 'jgs',
+    color: '#212842',
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
   inputContainer: {
     marginBottom: 15,
