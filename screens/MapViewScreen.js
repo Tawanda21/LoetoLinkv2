@@ -515,8 +515,8 @@ const styles = StyleSheet.create({
   },
   controlsContainer: {
     position: 'absolute',
-    top: 80,
-    right: 20,
+    top: 300,
+    right: 15,
     flexDirection: 'column',
     alignItems: 'flex-end',
   },
@@ -526,10 +526,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   zoomButton: {
-    backgroundColor: 'rgba(1, 138, 190, 0.8)',
+    backgroundColor: 'rgba(145, 221, 251, 0.8)',
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,

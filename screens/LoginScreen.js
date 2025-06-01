@@ -17,6 +17,12 @@ const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [popup, setPopup] = useState({ visible: false, title: '', message: '', onConfirm: null });
+  const [forgotPopup, setForgotPopup] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [step, setStep] = useState(1); // 1: email, 2: code+password
 
   // Function to handle user login
   const signInWithEmail = async () => {
@@ -99,6 +105,42 @@ const LoginScreen = () => {
     }
   };
 
+  // Send reset email
+  const handleSendResetEmail = async () => {
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      setStep(2);
+      Alert.alert('Check your email', 'Enter the code sent to your email and your new password.');
+    }
+  };
+
+  // Verify code and set new password
+  const handleResetPassword = async () => {
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match.');
+      return;
+    }
+    const { error } = await supabase.auth.verifyOtp({
+      email: resetEmail,
+      token: resetCode,
+      type: 'recovery',
+      options: { password: newPassword }
+    });
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      setForgotPopup(false);
+      setStep(1);
+      setResetEmail('');
+      setResetCode('');
+      setNewPassword('');
+      setConfirmPassword('');
+      Alert.alert('Success', 'Password reset successful. Please sign in.');
+    }
+  };
+
   // Listen for auth state changes (handles OAuth redirect)
   /*useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
@@ -161,6 +203,11 @@ const LoginScreen = () => {
             <TouchableOpacity style={styles.newButton} onPress={signUpWithEmail}>
               <Text style={styles.buttonText}>Sign Up</Text>
             </TouchableOpacity>
+            <TouchableOpacity onPress={() => setForgotPopup(true)}>
+              <Text style={{ color: 'blue', textDecorationLine: 'underline', marginBottom: 20 }}>
+                Forgot Password?
+              </Text>
+            </TouchableOpacity>
     
             <View style={styles.buttonContainer}>
               <TouchableOpacity style={styles.appleButton} onPress={signInWithApple}>
@@ -210,6 +257,72 @@ const LoginScreen = () => {
               onConfirm={popup.onConfirm}
               onClose={() => setPopup({ ...popup, visible: false })}
             />
+
+            {/* Forgot Password Popup */}
+            {forgotPopup && (
+              <View style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center'
+              }}>
+                <View style={{ backgroundColor: '#fff', padding: 20, borderRadius: 10, width: '90%' }}>
+                  {step === 1 ? (
+                    <>
+                      <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 10 }}>Reset Password</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Enter your email"
+                        value={resetEmail}
+                        onChangeText={setResetEmail}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                      />
+                      <TouchableOpacity style={styles.button} onPress={handleSendResetEmail}>
+                        <Text style={styles.buttonText}>Send Reset Code</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setForgotPopup(false)}>
+                        <Text style={{ color: 'red', textAlign: 'center', marginTop: 10 }}>Cancel</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 10 }}>Enter Code & New Password</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Reset Code"
+                        value={resetCode}
+                        onChangeText={setResetCode}
+                        autoCapitalize="none"
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="New Password"
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        secureTextEntry
+                        autoCapitalize="none"
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Confirm New Password"
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        secureTextEntry
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity style={styles.button} onPress={handleResetPassword}>
+                        <Text style={styles.buttonText}>Reset Password</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => {
+                        setStep(1);
+                        setForgotPopup(false);
+                      }}>
+                        <Text style={{ color: 'red', textAlign: 'center', marginTop: 10 }}>Cancel</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              </View>
+            )}
           </View>
         </ImageBackground>
   );
