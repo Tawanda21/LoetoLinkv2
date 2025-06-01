@@ -370,13 +370,14 @@ const MapViewScreen = ({ route }) => {
         mapType={mapType}
         trafficEnabled={trafficEnabled}
       >
-        {origin && <Marker coordinate={origin} title="Origin" />}
-        {destination && <Marker coordinate={destination} title="Destination" />}
+        {origin && <Marker coordinate={origin} title="Origin" pinColor='rgba(255, 217, 0, 0.8)'/>}
+
+        {destination && <Marker coordinate={destination} title="Destination" pinColor='rgba(30, 255, 0, 0.8)'/>}
 
         {detailedWaypoints && (
           <Polyline
             coordinates={detailedWaypoints}
-            strokeColor="#0000FF"
+            strokeColor="#rgba(0, 60, 255, 0.8)"
             strokeWidth={3}
           />
         )}
