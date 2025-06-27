@@ -143,7 +143,7 @@ Jest tests cover core screens and business logic.
 
 **LoetoLink Team**
 [GitHub](https://github.com/Tawanda21)
-[GitHub](https://github.com/cse23-102)
+[GitHub](https://github.com/Modise-Kgosi)
 
 ---
 
